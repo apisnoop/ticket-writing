@@ -4,6 +4,7 @@
 #+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
 #+OPTIONS: toc:nil tags:nil todo:nil
 #+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
 
 * TODO Progress [2/5]                                                :export:
 - [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/][MyEndpoint.org]]
@@ -16,36 +17,30 @@
 
 According to this APIsnoop query, there are still some remaining RESOURCENAME endpoints which are untested.
 
+with this query you can filter untested endpoints by their category and eligiblity for conformance.
+e.g below shows a query to find all conformance eligible untested,stable,core endpoints
+
   #+NAME: untested_stable_core_endpoints
   #+begin_src sql-mode :eval never-export :exports both :session none
     SELECT
-      operation_id,
+      endpoint,
       -- k8s_action,
       -- path,
       -- description,
       kind
-      FROM untested_stable_core_endpoints
-      -- FROM untested_stable_endpoints
-      where path not like '%volume%'
-      -- and kind like ''
-      -- and operation_id ilike '%%'
-     ORDER BY kind,operation_id desc
-     LIMIT 25
-           ;
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and category = 'core'
+      order by kind, endpoint desc
+      limit 25;
   #+end_src
 
  #+RESULTS: untested_stable_core_endpoints
- #+begin_SRC example
-                 operation_id                |      kind
- --------------------------------------------+-----------------
+ #+begin_example
+                   endpoint                  |       kind
+ --------------------------------------------+------------------
   createCoreV1NamespacedPodBinding           | Binding
   createCoreV1NamespacedBinding              | Binding
-  readCoreV1ComponentStatus                  | ComponentStatus
-  listCoreV1ComponentStatus                  | ComponentStatus
-  replaceCoreV1NamespacedEndpoints           | Endpoints
-  patchCoreV1NamespacedEndpoints             | Endpoints
-  listCoreV1EndpointsForAllNamespaces        | Endpoints
-  deleteCoreV1CollectionNamespacedEndpoints  | Endpoints
   replaceCoreV1NamespacedEvent               | Event
   readCoreV1NamespacedEvent                  | Event
   patchCoreV1NamespacedEvent                 | Event
@@ -61,11 +56,17 @@ According to this APIsnoop query, there are still some remaining RESOURCENAME en
   replaceCoreV1NamespaceFinalize             | Namespace
   readCoreV1NamespaceStatus                  | Namespace
   patchCoreV1NamespaceStatus                 | Namespace
-  patchCoreV1Namespace                       | Namespace
-  listCoreV1Namespace                        | Namespace
+  replaceCoreV1NodeStatus                    | Node
+  readCoreV1NodeStatus                       | Node
+  deleteCoreV1CollectionNode                 | Node
+  connectCoreV1PutNodeProxyWithPath          | NodeProxyOptions
+  connectCoreV1PutNodeProxy                  | NodeProxyOptions
+  connectCoreV1PostNodeProxyWithPath         | NodeProxyOptions
+  connectCoreV1PostNodeProxy                 | NodeProxyOptions
+  connectCoreV1PatchNodeProxyWithPath        | NodeProxyOptions
  (25 rows)
 
- #+end_SRC
+ #+end_example
 
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
@@ -185,17 +186,25 @@ According to this APIsnoop query, there are still some remaining RESOURCENAME en
 * Verifying increase in coverage with APISnoop                       :export:
 Discover useragents:
   #+begin_src sql-mode :eval never-export :exports both :session none
-    select distinct useragent from audit_event where bucket='apisnoop' and useragent not like 'kube%' and useragent not like 'coredns%' and useragent not like 'kindnetd%' and useragent like 'live%';
+    select distinct useragent
+      from testing.audit_event
+      where useragent like 'live%';
   #+end_src
+
+  #+RESULTS:
+  :  useragent
+  : -----------
+  : (0 rows)
+  :
 
 List endpoints hit by the test:
 #+begin_src sql-mode :exports both :session none
-select * from endpoints_hit_by_new_test where useragent like 'live%';
+select * from testing.endpoint_hit_by_new_test;
 #+end_src
 
 Display endpoint coverage change:
   #+begin_src sql-mode :eval never-export :exports both :session none
-    select * from projected_change_in_coverage;
+    select * from testing.projected_change_in_coverage;
   #+end_src
 
   #+RESULTS:
@@ -223,3 +232,22 @@ This test is also created with the goal of conformance promotion.
 /sig architecture
 
 /area conformance
+
+
+* scratch
+#+BEGIN_SRC
+CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
+  SELECT
+    ec.*,
+    ao.description,
+    ao.http_method
+    FROM endpoint_coverage ec
+           JOIN
+           api_operation_material ao ON (ec.bucket = ao.bucket AND ec.job = ao.job AND ec.operation_id = ao.operation_id)
+   WHERE ec.level = 'stable'
+     AND tested is false
+     AND ao.deprecated IS false
+     AND ec.job != 'live'
+   ORDER BY hit desc
+            ;
+#+END_SRC
