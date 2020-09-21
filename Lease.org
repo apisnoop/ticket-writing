@@ -30,43 +30,20 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       kind
       FROM testing.untested_stable_endpoint
       where eligible is true
-      and category = 'core'
+     -- and category = 'core'
+        and endpoint ilike '%Lease%'
       order by kind, endpoint desc
       limit 25;
   #+end_src
 
  #+RESULTS: untested_stable_core_endpoints
- #+begin_example
-                   endpoint                  |       kind
- --------------------------------------------+------------------
-  createCoreV1NamespacedPodBinding           | Binding
-  createCoreV1NamespacedBinding              | Binding
-  replaceCoreV1NamespacedEvent               | Event
-  readCoreV1NamespacedEvent                  | Event
-  patchCoreV1NamespacedEvent                 | Event
-  listCoreV1NamespacedEvent                  | Event
-  listCoreV1EventForAllNamespaces            | Event
-  deleteCoreV1NamespacedEvent                | Event
-  deleteCoreV1CollectionNamespacedEvent      | Event
-  createCoreV1NamespacedEvent                | Event
-  patchCoreV1NamespacedLimitRange            | LimitRange
-  listCoreV1LimitRangeForAllNamespaces       | LimitRange
-  deleteCoreV1CollectionNamespacedLimitRange | LimitRange
-  replaceCoreV1NamespaceStatus               | Namespace
-  replaceCoreV1NamespaceFinalize             | Namespace
-  readCoreV1NamespaceStatus                  | Namespace
-  patchCoreV1NamespaceStatus                 | Namespace
-  replaceCoreV1NodeStatus                    | Node
-  readCoreV1NodeStatus                       | Node
-  deleteCoreV1CollectionNode                 | Node
-  connectCoreV1PutNodeProxyWithPath          | NodeProxyOptions
-  connectCoreV1PutNodeProxy                  | NodeProxyOptions
-  connectCoreV1PostNodeProxyWithPath         | NodeProxyOptions
-  connectCoreV1PostNodeProxy                 | NodeProxyOptions
-  connectCoreV1PatchNodeProxyWithPath        | NodeProxyOptions
- (25 rows)
+ #+begin_SRC example
+                 endpoint                 | kind
+ -----------------------------------------+-------
+  listCoordinationV1LeaseForAllNamespaces | Lease
+ (1 row)
 
- #+end_example
+ #+end_SRC
 
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
