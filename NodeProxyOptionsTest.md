@@ -1,4 +1,3 @@
-
 # Progress <code>[1/6]</code>
 
 -   [X] APISnoop org-flow : [NodeProxyOptionsTest.org](https://github.com/cncf/apisnoop/blob/master/tickets/k8s/NodeProxyOptionsTest.org)
@@ -14,137 +13,78 @@ According to this APIsnoop query, there are still some remaining NodeProxyOption
 
 ```sql-mode
 SELECT
-  operation_id,
-  -- k8s_action,
-  -- path,
+  endpoint,
+  path,
   description,
   kind
-  FROM untested_stable_core_endpoints
-  -- FROM untested_stable_endpoints
-  where path not like '%volume%'
+FROM untested_stable_endpoint
+WHERE category = 'core'
   and kind like 'NodeProxyOptions'
-  -- and operation_id ilike '%%'
- ORDER BY kind,operation_id desc
- LIMIT 25
-       ;
+  and endpoint like '%Proxy'
+ORDER BY kind,endpoint desc
+LIMIT 25
+;
 ```
 
 ```example
-             operation_id              |                description                |       kind       
----------------------------------------+-------------------------------------------+------------------
- connectCoreV1PutNodeProxyWithPath     | connect PUT requests to proxy of Node     | NodeProxyOptions
- connectCoreV1PutNodeProxy             | connect PUT requests to proxy of Node     | NodeProxyOptions
- connectCoreV1PostNodeProxyWithPath    | connect POST requests to proxy of Node    | NodeProxyOptions
- connectCoreV1PostNodeProxy            | connect POST requests to proxy of Node    | NodeProxyOptions
- connectCoreV1PatchNodeProxyWithPath   | connect PATCH requests to proxy of Node   | NodeProxyOptions
- connectCoreV1PatchNodeProxy           | connect PATCH requests to proxy of Node   | NodeProxyOptions
- connectCoreV1OptionsNodeProxyWithPath | connect OPTIONS requests to proxy of Node | NodeProxyOptions
- connectCoreV1OptionsNodeProxy         | connect OPTIONS requests to proxy of Node | NodeProxyOptions
- connectCoreV1HeadNodeProxyWithPath    | connect HEAD requests to proxy of Node    | NodeProxyOptions
- connectCoreV1HeadNodeProxy            | connect HEAD requests to proxy of Node    | NodeProxyOptions
- connectCoreV1GetNodeProxy             | connect GET requests to proxy of Node     | NodeProxyOptions
- connectCoreV1DeleteNodeProxyWithPath  | connect DELETE requests to proxy of Node  | NodeProxyOptions
- connectCoreV1DeleteNodeProxy          | connect DELETE requests to proxy of Node  | NodeProxyOptions
-(13 rows)
+           endpoint            |            path            |                description                |       kind
+-------------------------------|----------------------------|-------------------------------------------|------------------
+ connectCoreV1PutNodeProxy     | /api/v1/nodes/{name}/proxy | connect PUT requests to proxy of Node     | NodeProxyOptions
+ connectCoreV1PostNodeProxy    | /api/v1/nodes/{name}/proxy | connect POST requests to proxy of Node    | NodeProxyOptions
+ connectCoreV1PatchNodeProxy   | /api/v1/nodes/{name}/proxy | connect PATCH requests to proxy of Node   | NodeProxyOptions
+ connectCoreV1OptionsNodeProxy | /api/v1/nodes/{name}/proxy | connect OPTIONS requests to proxy of Node | NodeProxyOptions
+ connectCoreV1HeadNodeProxy    | /api/v1/nodes/{name}/proxy | connect HEAD requests to proxy of Node    | NodeProxyOptions
+ connectCoreV1GetNodeProxy     | /api/v1/nodes/{name}/proxy | connect GET requests to proxy of Node     | NodeProxyOptions
+ connectCoreV1DeleteNodeProxy  | /api/v1/nodes/{name}/proxy | connect DELETE requests to proxy of Node  | NodeProxyOptions
+(7 rows)
 
 ```
 
-Looking for feedback on what direction should be taken with these endpoints and the best method for testing them.
+The current behaviour of these endpoints is to redirect the client to their related `NodeProxyWithPath` endpoints. The reasons for this action are listed in the following issue: [Apiserver proxy requires a trailing slash #4958](https://github.com/kubernetes/kubernetes/issues/4958).
 
 # API Reference and feature documentation
 
 -   [Kubernetes API Reference Docs](https://kubernetes.io/docs/reference/kubernetes-api/)
--   [Kubernetes API: v1.18 Node v1 core Proxy Operation](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#-strong-proxy-operations-node-v1-core-strong-)
+-   [Kubernetes API: v1.19 Node v1 core Proxy Operation](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-proxy-operations-node-v1-core-strong-)
 -   [client-go](https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/)
 
 # The mock test
 
 ## Test outline
 
-1.  
+1.  Retrive a list of nodes in the cluster and then locate the name of the first node in the list.
 
+2.  Create a http.Client that checks for a redirect so that status code can be checked.
 
-2.  
-
-
-3.  
-
-
-4.  
-
-
-5.  
+3.  Loop through all http verbs, testing that the node proxy endpoint returns the required 301 status code.
 
 ## Test the functionality in Go
 
-```go
-package main
-
-import (
-  "fmt"
-  "context"
-  "flag"
-  "os"
-  v1 "k8s.io/api/core/v1"
-  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-  "k8s.io/client-go/kubernetes"
-  "k8s.io/client-go/tools/clientcmd"
-)
-
-func main() {
-  // uses the current context in kubeconfig
-  kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-  flag.Parse()
-  config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-  if err != nil {
-      fmt.Println(err, "Could not build config from flags")
-      return
-  }
-  // make our work easier to find in the audit_event queries
-  config.UserAgent = "live-test-writing"
-  // creates the clientset
-  ClientSet, _ := kubernetes.NewForConfig(config)
-
-  // TEST BEGINS HERE
-
-
-  // TEST ENDS HERE
-
-  fmt.Println("[status] complete")
-}
-```
+-   [e2e test: "proxy connection returns a series of 301 redirections for a node"](https://github.com/ii/kubernetes/blob/proxy-node-redirect/test/e2e/network/proxy.go#L265-L303)
 
 # Verifying increase in coverage with APISnoop
 
-Discover useragents:
+## Discover useragents:
 
 ```sql-mode
 select distinct useragent from audit_event where bucket='apisnoop' and useragent not like 'kube%' and useragent not like 'coredns%' and useragent not like 'kindnetd%' and useragent like 'live%';
 ```
 
-List endpoints hit by the test:
+## List endpoints hit by the test:
 
 ```sql-mode
 select * from endpoints_hit_by_new_test where useragent like 'live%';
 ```
 
-Display endpoint coverage change:
+## Display endpoint coverage change:
 
 ```sql-mode
 select * from projected_change_in_coverage;
 ```
 
-```example
-   category    | total_endpoints | old_coverage | new_coverage | change_in_number
----------------+-----------------+--------------+--------------+------------------
- test_coverage |             438 |          183 |          183 |                0
-(1 row)
-
-```
-
 # Final notes
 
-If a test with these calls gets merged, ****test coverage will go up by N points****
+If a test with these calls gets merged, ****test coverage will go up by 7 points****
 
 This test is also created with the goal of conformance promotion.
 
