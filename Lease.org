@@ -51,17 +51,15 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 * The mock test                                                      :export:
 ** Test outline
-1. Create a RESOURCENAME with a static label
+1.
 
-2. Patch the RESOURCENAME with a new label and updated data
+2.
 
-3. Get the RESOURCENAME to ensure it's patched
+3.
 
-4. List all RESOURCENAMEs in all Namespaces with a static label
-   find the RESOURCENAME
-   ensure that the RESOURCENAME is found and is patched
+4.
 
-5. Delete Namespaced RESOURCENAME via a Collection with a LabelSelector
+5.
 
 ** Test the functionality in Go
    #+NAME: Mock Test In Go
