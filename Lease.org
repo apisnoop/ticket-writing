@@ -36,14 +36,15 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       limit 25;
   #+end_src
 
- #+RESULTS: untested_stable_core_endpoints
- #+begin_SRC example
-                 endpoint                 | kind
- -----------------------------------------+-------
-  listCoordinationV1LeaseForAllNamespaces | Lease
- (1 row)
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                  endpoint                 | kind
+  -----------------------------------------+-------
+   listCoordinationV1LeaseForAllNamespaces | Lease
+  (1 row)
 
- #+end_SRC
+  #+end_SRC
+
 
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
