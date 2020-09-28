@@ -1,0 +1,30 @@
+The following query from [SnoopDB](https://github.com/cncf/apisnoop/tree/master/apps/snoopdb) confirms the untested PodProxy endpoints for the apiserver.
+
+```sql-mode
+select endpoint,
+       path,
+       description
+  from testing.untested_stable_endpoint
+ where category = 'core'
+   and eligible is true
+   and endpoint like '%Pod%Proxy'
+ limit 10;
+```
+
+```example
+                endpoint                |                       path                       |               description
+----------------------------------------|--------------------------------------------------|------------------------------------------
+ connectCoreV1PutNamespacedPodProxy     | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect PUT requests to proxy of Pod
+ connectCoreV1PostNamespacedPodProxy    | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect POST requests to proxy of Pod
+ connectCoreV1PatchNamespacedPodProxy   | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect PATCH requests to proxy of Pod
+ connectCoreV1OptionsNamespacedPodProxy | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect OPTIONS requests to proxy of Pod
+ connectCoreV1HeadNamespacedPodProxy    | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect HEAD requests to proxy of Pod
+ connectCoreV1GetNamespacedPodProxy     | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect GET requests to proxy of Pod
+ connectCoreV1DeleteNamespacedPodProxy  | /api/v1/namespaces/{namespace}/pods/{name}/proxy | connect DELETE requests to proxy of Pod
+(7 rows)
+
+```
+
+When the [blanket redirect](https://github.com/kubernetes/kubernetes/blob/4b24dca228d61f4d13dcd57b46465b0df74571f6/staging/src/k8s.io/apimachinery/pkg/util/proxy/upgradeaware.go#L210) of all proxy apiserver endpoints is removed, five endpoints for pod (all but `GET` and `HEAD`) will then connect to the specified pod.
+
+Before a conformance test can be created for those five endpoints there needs to be a pod that can support all of the above http verbs. The intention is to update the test image [Agnhost](https://github.com/kubernetes/kubernetes/tree/master/test/images/agnhost) with this functionality.
