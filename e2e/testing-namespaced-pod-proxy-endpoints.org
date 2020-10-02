@@ -1,0 +1,74 @@
+#+title: Testing NamespacedPodProxy Endpoints
+
+
+* Checking Proxy pass through for non GET/HEAD verbs
+** Running apache2 on Humacs
+
+Start apache server in the foreground after installing the =apache2= package
+
+#+begin_src text
+root@humacs:~# apachectl -D FOREGROUND
+AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 10.244.0.44. Set the 'ServerName' directive globally to suppress this message
+#+end_src
+
+** Curl Test
+
+Testing proxy via =kubectl proxy= connection
+
+#+begin_src text
+$ curl -I -X POST --user-agent "curl-via-proxy" http://127.0.0.1:9999/api/v1/namespaces/default/pods/humacs/proxy
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: no-cache, private
+Content-Type: text/html
+Date: Fri, 02 Oct 2020 02:29:54 GMT
+Etag: "2aa6-5b0a65d6e4a1d-gzip"
+Last-Modified: Fri, 02 Oct 2020 01:51:02 GMT
+Server: Apache/2.4.41 (Ubuntu)
+Vary: Accept-Encoding
+Transfer-Encoding: chunked
+#+end_src
+
+** Apache2 Logs
+
+The logs look as though the URL path is okay.
+
+#+begin_src text
+10.244.0.1 - - [02/Oct/2020:02:27:30 +0000] "POST / HTTP/1.1" 200 3421 "-" "curl-via-proxy"
+10.244.0.1 - - [02/Oct/2020:02:29:54 +0000] "POST / HTTP/1.1" 200 3421 "-" "curl-via-proxy"
+#+end_src
+
+** Checking with tcpdump
+
+#+begin_src text
+root@humacs:/home/ii# tcpdump -nv -i eth0 port 80
+#+end_src
+
+Checking the logs, =Content-Length: 0= was found, which means the current code doesn't follow the [[https://www.w3.org/Protocols/HTTP/1.1/rfc2616bis/draft-lafon-rfc2616bis-03.html#request-uri][RFC]] and needs to have =/= appended to the URI.
+
+#+begin_src text
+      10.244.0.1.50228 > 10.244.0.44.80: Flags [P.], cksum 0x171f (incorrect -> 0x5df0), seq 1:229, ack 1, win 502, options [nop,nop,TS val 913753328 ecr 1738332039], length 228: HTTP, length: 228
+          POST / HTTP/1.1
+          Host: 127.0.0.1:9999
+          User-Agent: curl-via-proxy
+          Content-Length: 0
+          Accept: */*
+          Accept-Encoding: gzip
+          X-Forwarded-For: 127.0.0.1, 172.19.0.1
+          X-Forwarded-Uri: /api/v1/namespaces/default/pods/humacs/proxy/
+
+  02:29:54.245847 IP (tos 0x0, ttl 64, id 35660, offset 0, flags [DF], proto TCP (6), length 52)
+      10.244.0.44.80 > 10.244.0.1.50228: Flags [.], cksum 0x163b (incorrect -> 0x7163), ack 229, win 508, options [nop,nop,TS val 1738332039 ecr 913753328], length 0
+  02:29:54.247422 IP (tos 0x0, ttl 64, id 35661, offset 0, flags [DF], proto TCP (6), length 3473)
+      10.244.0.44.80 > 10.244.0.1.50228: Flags [P.], cksum 0x2398 (incorrect -> 0x70e3), seq 1:3422, ack 229, win 508, options [nop,nop,TS val 1738332041 ecr 913753328], length 3421: HTTP, length: 3421
+          HTTP/1.1 200 OK
+          Date: Fri, 02 Oct 2020 02:29:54 GMT
+          Server: Apache/2.4.41 (Ubuntu)
+          Last-Modified: Fri, 02 Oct 2020 01:51:02 GMT
+          ETag: "2aa6-5b0a65d6e4a1d-gzip"
+          Accept-Ranges: bytes
+          Vary: Accept-Encoding
+          Content-Encoding: gzip
+          Content-Length: 3138
+          Content-Type: text/html
+#+end_src
