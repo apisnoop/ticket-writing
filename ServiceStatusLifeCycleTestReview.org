@@ -25,7 +25,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
     SELECT
       endpoint,
       -- k8s_action,
-      -- path,
+      path,
       -- description,
       kind
       FROM testing.untested_stable_endpoint
@@ -38,15 +38,16 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
   #+RESULTS: untested_stable_core_endpoints
   #+begin_SRC example
-                 endpoint               |  kind
-  --------------------------------------+---------
-   replaceCoreV1NamespacedServiceStatus | Service
-   readCoreV1NamespacedServiceStatus    | Service
-   patchCoreV1NamespacedServiceStatus   | Service
-   patchCoreV1NamespacedService         | Service
+                 endpoint               |                         path                          |  kind
+  --------------------------------------+-------------------------------------------------------+---------
+   replaceCoreV1NamespacedServiceStatus | /api/v1/namespaces/{namespace}/services/{name}/status | Service
+   readCoreV1NamespacedServiceStatus    | /api/v1/namespaces/{namespace}/services/{name}/status | Service
+   patchCoreV1NamespacedServiceStatus   | /api/v1/namespaces/{namespace}/services/{name}/status | Service
+   patchCoreV1NamespacedService         | /api/v1/namespaces/{namespace}/services/{name}        | Service
   (4 rows)
 
   #+end_SRC
+
 
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
@@ -131,6 +132,8 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          return
        }
 
+       fmt.Printf("Looking at Creation:\n %#v \n", testService)
+	     // os.Exit(0)
        fmt.Println("watching for the Service to be added")
        svcWatchTimeoutSeconds := int64(180)
        svcWatch, err := ClientSet.CoreV1().Services(testNamespaceName).Watch(context.TODO(), metav1.ListOptions{LabelSelector: "test-service-static=true", TimeoutSeconds: &svcWatchTimeoutSeconds})
@@ -147,7 +150,9 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          }
        }
 
-       // fmt.Println(testService)
+       fmt.Println(testService)
+       fmt.Printf("Looking at testService:\n %#v \n", testService)
+       // os.Exit(0)
        fmt.Println("patching the ServiceStatus")
        serviceStatusPatch, err := json.Marshal(map[string]interface{}{
          "metadata": map[string]interface{}{
@@ -221,7 +226,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          fmt.Println(err)
          return
        }
-       // fmt.Println(svcs)
+        fmt.Println(svcs)
        foundSvc := false
        for _, svcItem := range svcs.Items {
          if svcItem.ObjectMeta.Name == testServiceName &&
@@ -238,6 +243,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          return
        }
 
+       os.Exit(0)
        fmt.Println("deleting the service")
        err = ClientSet.CoreV1().Services(testNamespaceName).Delete(context.TODO(), testServiceName, metav1.DeleteOptions{})
        if err != nil {
@@ -255,13 +261,20 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
    #+RESULTS: Mock Test In Go
    #+begin_src go
    creating a Service
+   Looking at Creation:
+    v1.Service{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-service", GenerateName:"", Namespace:"", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string{"test-service-static":"true"}, Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, Spec:v1.ServiceSpec{Ports:[]v1.ServicePort{v1.ServicePort{Name:"http", Protocol:"TCP", AppProtocol:(*string)(nil), Port:80, TargetPort:intstr.IntOrString{Type:0, IntVal:80, StrVal:""}, NodePort:0}}, Selector:map[string]string(nil), ClusterIP:"", Type:"ClusterIP", ExternalIPs:[]string(nil), SessionAffinity:"", LoadBalancerIP:"", LoadBalancerSourceRanges:[]string(nil), ExternalName:"", ExternalTrafficPolicy:"", HealthCheckNodePort:0, PublishNotReadyAddresses:false, SessionAffinityConfig:(*v1.SessionAffinityConfig)(nil), IPFamily:(*v1.IPFamily)(nil), TopologyKeys:[]string(nil)}, Status:v1.ServiceStatus{LoadBalancer:v1.LoadBalancerStatus{Ingress:[]v1.LoadBalancerIngress(nil)}}}
    watching for the Service to be added
+   {{ } {test-service      0 0001-01-01 00:00:00 +0000 UTC <nil> <nil> map[test-service-static:true] map[] [] []  []} {[{http TCP <nil> 80 {0 80 } 0}] map[]  ClusterIP []   []   0 false nil <nil> []} {{[]}}}
+   Looking at testService:
+    v1.Service{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"test-service", GenerateName:"", Namespace:"", SelfLink:"", UID:"", ResourceVersion:"", Generation:0, CreationTimestamp:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, DeletionTimestamp:(*v1.Time)(nil), DeletionGracePeriodSeconds:(*int64)(nil), Labels:map[string]string{"test-service-static":"true"}, Annotations:map[string]string(nil), OwnerReferences:[]v1.OwnerReference(nil), Finalizers:[]string(nil), ClusterName:"", ManagedFields:[]v1.ManagedFieldsEntry(nil)}, Spec:v1.ServiceSpec{Ports:[]v1.ServicePort{v1.ServicePort{Name:"http", Protocol:"TCP", AppProtocol:(*string)(nil), Port:80, TargetPort:intstr.IntOrString{Type:0, IntVal:80, StrVal:""}, NodePort:0}}, Selector:map[string]string(nil), ClusterIP:"", Type:"ClusterIP", ExternalIPs:[]string(nil), SessionAffinity:"", LoadBalancerIP:"", LoadBalancerSourceRanges:[]string(nil), ExternalName:"", ExternalTrafficPolicy:"", HealthCheckNodePort:0, PublishNotReadyAddresses:false, SessionAffinityConfig:(*v1.SessionAffinityConfig)(nil), IPFamily:(*v1.IPFamily)(nil), TopologyKeys:[]string(nil)}, Status:v1.ServiceStatus{LoadBalancer:v1.LoadBalancerStatus{Ingress:[]v1.LoadBalancerIngress(nil)}}}
    patching the ServiceStatus
    updating the ServiceStatus
    finding Service in list
-   deleting the service
-   [status] complete
+   &ServiceList{ListMeta:{/api/v1/services 38433  <nil>},Items:[]Service{Service{ObjectMeta:{test-service  default /api/v1/namespaces/default/services/test-service e242d905-7e45-41ed-8af2-c783abda998c 38433 0 2020-10-06 11:24:21 +1300 NZDT <nil> <nil> map[test-service:updated test-service-static:true] map[] [] []  [{live-test-writing Update v1 2020-10-06 11:24:21 +1300 NZDT FieldsV1 FieldsV1{Raw:*[123 34 102 58 109 101 116 97 100 97 116 97 34 58 123 34 102 58 108 97 98 101 108 115 34 58 123 34 46 34 58 123 125 44 34 102 58 116 101 115 116 45 115 101 114 118 105 99 101 34 58 123 125 44 34 102 58 116 101 115 116 45 115 101 114 118 105 99 101 45 115 116 97 116 105 99 34 58 123 125 125 125 44 34 102 58 115 112 101 99 34 58 123 34 102 58 112 111 114 116 115 34 58 123 34 46 34 58 123 125 44 34 107 58 123 92 34 112 111 114 116 92 34 58 56 48 56 48 44 92 34 112 114 111 116 111 99 111 108 92 34 58 92 34 84 67 80 92 34 125 34 58 123 34 46 34 58 123 125 44 34 102 58 110 97 109 101 34 58 123 125 44 34 102 58 112 111 114 116 34 58 123 125 44 34 102 58 112 114 111 116 111 99 111 108 34 58 123 125 44 34 102 58 116 97 114 103 101 116 80 111 114 116 34 58 123 125 125 44 34 107 58 123 92 34 112 111 114 116 92 34 58 56 48 56 49 44 92 34 112 114 111 116 111 99 111 108 92 34 58 92 34 84 67 80 92 34 125 34 58 123 34 46 34 58 123 125 44 34 102 58 110 97 109 101 34 58 123 125 44 34 102 58 112 111 114 116 34 58 123 125 44 34 102 58 112 114 111 116 111 99 111 108 34 58 123 125 44 34 102 58 116 97 114 103 101 116 80 111 114 116 34 58 123 125 125 125 44 34 102 58 115 101 115 115 105 111 110 65 102 102 105 110 105 116 121 34 58 123 125 44 34 102 58 116 121 112 101 34 58 123 125 125 125],}}]},Spec:ServiceSpec{Ports:[]ServicePort{ServicePort{Name:http8081,Protocol:TCP,Port:8081,TargetPort:{0 80 },NodePort:0,AppProtocol:nil,},},Selector:map[string]string{},ClusterIP:10.96.203.126,Type:ClusterIP,ExternalIPs:[],SessionAffinity:None,LoadBalancerIP:,LoadBalancerSourceRanges:[],ExternalName:,ExternalTrafficPolicy:,HealthCheckNodePort:0,PublishNotReadyAddresses:false,SessionAffinityConfig:nil,IPFamily:nil,TopologyKeys:[],},Status:ServiceStatus{LoadBalancer:LoadBalancerStatus{Ingress:[]LoadBalancerIngress{},},},},},}
    #+end_src
+
+
+
 
 * Verifying increase in coverage with APISnoop                       :export:
 ** Discover useragents:
@@ -289,15 +302,26 @@ select * from testing.endpoint_hit_by_new_test;
 #+begin_SRC example
      useragent     |              endpoint              | hit_by_ete | hit_by_new_test
 -------------------+------------------------------------+------------+-----------------
- live-test-writing | createCoreV1NamespacedService      | t          |              30
- live-test-writing | deleteCoreV1NamespacedService      | t          |              30
- live-test-writing | listCoreV1NamespacedService        | t          |              45
- live-test-writing | listCoreV1ServiceForAllNamespaces  | t          |              30
- live-test-writing | patchCoreV1NamespacedServiceStatus | f          |              30
- live-test-writing | readCoreV1NamespacedServiceStatus  | f          |              30
- live-test-writing | replaceCoreV1NamespacedService     | t          |              30
+ live-test-writing | createCoreV1NamespacedService      | t          |             108
+ live-test-writing | deleteCoreV1NamespacedService      | t          |              50
+ live-test-writing | listCoreV1NamespacedService        | t          |             117
+ live-test-writing | listCoreV1ServiceForAllNamespaces  | t          |              58
+ live-test-writing | patchCoreV1NamespacedServiceStatus | f          |              58
+ live-test-writing | readCoreV1NamespacedServiceStatus  | f          |              58
+ live-test-writing | replaceCoreV1NamespacedService     | t          |              58
 (7 rows)
 
+#+end_SRC
+
+
+** Delete Live events:
+#+begin_src sql-mode :exports both :session none
+delete from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 9566
 #+end_SRC
 
 ** Display endpoint coverage change:
