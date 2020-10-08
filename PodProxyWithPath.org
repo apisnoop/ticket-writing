@@ -1,14 +1,14 @@
 # -*- ii: apisnoop; -*-
-#+TITLE: Mock Ticket Template
-#+AUTHOR: ii team
+#+TITLE: Write PodProxyWithPath Mock Test
+#+AUTHOR: Stephen Heywood
 #+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
 #+OPTIONS: toc:nil tags:nil todo:nil
 #+EXPORT_SELECT_TAGS: export
 #+PROPERTY: header-args:sql-mode :product postgres
 
-* TODO Progress [2/5]                                                :export:
-- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/][MyEndpoint.org]]
-- [X] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
+* TODO Progress [1/6]                                                :export:
+- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/PodProxyWithPath.org][PodProxyWithPath.org]]
+- [ ] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
 - [ ] test pr : kuberenetes/kubernetes#
 - [ ] two weeks soak start date : testgrid-link
 - [ ] two weeks soak end date :
@@ -86,7 +86,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
        // "k8s.io/client-go/dynamic"
        // "k8s.io/apimachinery/pkg/runtime/schema"
        metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-       // "k8s.io/apimachinery/pkg/util/wait"
+       "k8s.io/apimachinery/pkg/util/wait"
        "k8s.io/client-go/kubernetes"
        // "k8s.io/client-go/transport"
        // "k8s.io/apimachinery/pkg/types"
@@ -116,6 +116,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
        }
      }
 
+
      const (
        podRetryPeriod  = 1 * time.Second
        podRetryTimeout = 1 * time.Minute
@@ -139,6 +140,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
        ns := "default" // f.Namespace.Name
        // httpVerbs := []string{"DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"}
 
+       fmt.Println("Creating pod...")
        _, err = ClientSet.CoreV1().Pods(ns).Create(context.TODO(), &v1.Pod{
          ObjectMeta: metav1.ObjectMeta{
            Name: "proxy-target",
@@ -159,8 +161,8 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          }}, metav1.CreateOptions{})
        ExpectNoError(err, "failed to create pod")
 
-       // err = wait.PollImmediate(podRetryPeriod, podRetryTimeout, checkPodStatus(ClientSet, "test=response"))
-       // ExpectNoError(err, "Pod didn't start within time out period")
+       err = wait.PollImmediate(podRetryPeriod, podRetryTimeout, checkPodStatus(ClientSet, "test=response"))
+       ExpectNoError(err, "Pod didn't start within time out period")
 
        // transportCfg, err := ClientConfig().TransportConfig()
        // ExpectNoError(err, "Error creating transportCfg")
@@ -182,36 +184,51 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
      }
 
-     // func checkPodStatus(f *framework.Framework, label string) func() (bool, error) {
-     // func checkPodStatus(c  , label string) func() (bool, error) {
-     //   return func() (bool, error) {
-     //     var err error
+     func checkPodStatus(cs *kubernetes.Clientset , label string) func() (bool, error) {
+       return func() (bool, error) {
+         var err error
 
-     //     list, err := c.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
-     //       LabelSelector: label})
+         list, err := cs.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
+           LabelSelector: label})
 
-     //     if err != nil {
-     //       return false, err
-     //     }
+         if err != nil {
+           return false, err
+         }
 
-     //     if list.Items[0].Status.Phase == "Pending" {
-     //       fmt.Printf("Pod Quantity: %d Status: %s", len(list.Items), list.Items[0].Status.Phase)
-     //       return false, err
-     //     }
-     //     fmt.Printf("Pod Status: %v", list.Items[0].Status.Phase)
-     //     return true, nil
-     //   }
-     // }
+         if list.Items[0].Status.Phase != "Running" {
+           fmt.Printf("Pod Quantity: %d Status: %s\n", len(list.Items), list.Items[0].Status.Phase)
+           return false, err
+         }
+         fmt.Printf("Pod Status: %v\n", list.Items[0].Status.Phase)
+         return true, nil
+       }
+     }
    #+end_src
 
    #+RESULTS: Mock Test In Go
    #+begin_src go
+   Creating pod...
+   Pod Quantity: 1 Status: Pending
+   Pod Quantity: 1 Status: Pending
+   Pod Quantity: 1 Status: Pending
+   Pod Status: Running
    [status] complete
    #+end_src
 
-
 * Verifying increase in coverage with APISnoop                       :export:
-Discover useragents:
+** Reset stats
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+delete from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 674395
+#+end_SRC
+
+** Discover useragents:
+
   #+begin_src sql-mode :eval never-export :exports both :session none
     select distinct useragent
       from testing.audit_event
@@ -219,17 +236,32 @@ Discover useragents:
   #+end_src
 
   #+RESULTS:
-  :  useragent
-  : -----------
-  : (0 rows)
-  :
+  #+begin_SRC example
+       useragent
+  -------------------
+   live-test-writing
+  (1 row)
 
-List endpoints hit by the test:
+  #+end_SRC
+
+** List endpoints hit by the test:
+
 #+begin_src sql-mode :exports both :session none
 select * from testing.endpoint_hit_by_new_test;
 #+end_src
 
-Display endpoint coverage change:
+#+RESULTS:
+#+begin_SRC example
+     useragent     |         endpoint          | hit_by_ete | hit_by_new_test
+-------------------+---------------------------+------------+-----------------
+ live-test-writing | createCoreV1NamespacedPod | t          |               1
+ live-test-writing | listCoreV1NamespacedPod   | t          |               5
+(2 rows)
+
+#+end_SRC
+
+** Display endpoint coverage change:
+
   #+begin_src sql-mode :eval never-export :exports both :session none
     select * from testing.projected_change_in_coverage;
   #+end_src
@@ -238,10 +270,11 @@ Display endpoint coverage change:
   #+begin_SRC example
      category    | total_endpoints | old_coverage | new_coverage | change_in_number
   ---------------+-----------------+--------------+--------------+------------------
-   test_coverage |             438 |          183 |          183 |                0
+   test_coverage |             831 |          306 |          306 |                0
   (1 row)
 
   #+end_SRC
+
 
 * Convert to Ginkgo Test
 ** Ginkgo Test
