@@ -65,9 +65,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 4. Iterate through a list of http methods and check the response from the porter app
 
-5. Confirm that the delete response code is 404 OK
-
-6. Confirm that all other response codes are 200 OK
+5. Confirm that each response code is 200 OK
 
 ** Test the functionality in Go
    #+NAME: Mock Test In Go
@@ -206,23 +204,8 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          Transport: restTransport,
        }
 
-       httpVerbs := []string{"DELETE"}
-       for _, httpVerb := range httpVerbs {
-
-         urlString := config.Host + "/api/v1/namespaces/" + ns + "/services/test-service/proxy/some/path/with/" + httpVerb
-         fmt.Printf("Starting http.Client for %s\n", urlString)
-         request, err := http.NewRequest(httpVerb, urlString, nil)
-         ExpectNoError(err, "processing request")
-
-         resp, err := client.Do(request)
-         ExpectNoError(err, "processing response")
-         defer resp.Body.Close()
-
-         fmt.Printf("http.Client request:%s StatusCode:%d\n", httpVerb, resp.StatusCode)
-         ExpectEqual(resp.StatusCode, 404, "The resp.StatusCode returned: %d", resp.StatusCode)
-       }
-
-       httpVerbs = []string{"GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"}
+       time.Sleep(1 * time.Second) // not required in e2e test
+       httpVerbs := []string{"DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"}
        for _, httpVerb := range httpVerbs {
 
          urlString := config.Host + "/api/v1/namespaces/" + ns + "/services/test-service/proxy/some/path/with/" + httpVerb
@@ -240,7 +223,6 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
        // TEST ENDS HERE
 
        fmt.Println("[status] complete")
-
      }
 
      func checkPodStatus(cs *kubernetes.Clientset, label string) func() (bool, error) {
@@ -272,7 +254,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
    Pod Status: Running
    Service created
    Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/DELETE
-   http.Client request:DELETE StatusCode:404
+   http.Client request:DELETE StatusCode:200
    Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/GET
    http.Client request:GET StatusCode:200
    Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/HEAD
@@ -297,7 +279,7 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
-DELETE 398016
+DELETE 89563
 #+end_SRC
 
 ** Discover useragents:
@@ -327,14 +309,14 @@ DELETE 398016
 #+begin_SRC example
      useragent     |                     endpoint                      | hit_by_ete | hit_by_new_test
 -------------------+---------------------------------------------------+------------+-----------------
- live-test-writing | connectCoreV1DeleteNamespacedServiceProxyWithPath | f          |               8
- live-test-writing | connectCoreV1PatchNamespacedServiceProxyWithPath  | f          |               8
- live-test-writing | connectCoreV1PostNamespacedServiceProxyWithPath   | f          |               7
- live-test-writing | connectCoreV1PutNamespacedServiceProxyWithPath    | f          |               8
- live-test-writing | listCoreV1NamespacedPod                           | t          |              15
- live-test-writing | connectCoreV1GetNamespacedServiceProxyWithPath    | t          |              15
- live-test-writing | createCoreV1NamespacedPod                         | t          |               5
- live-test-writing | createCoreV1NamespacedService                     | t          |               5
+ live-test-writing | connectCoreV1DeleteNamespacedServiceProxyWithPath | f          |              12
+ live-test-writing | connectCoreV1PatchNamespacedServiceProxyWithPath  | f          |              12
+ live-test-writing | connectCoreV1PostNamespacedServiceProxyWithPath   | f          |              12
+ live-test-writing | connectCoreV1PutNamespacedServiceProxyWithPath    | f          |              12
+ live-test-writing | listCoreV1NamespacedPod                           | t          |              24
+ live-test-writing | connectCoreV1GetNamespacedServiceProxyWithPath    | t          |              24
+ live-test-writing | createCoreV1NamespacedPod                         | t          |               8
+ live-test-writing | createCoreV1NamespacedService                     | t          |               8
 (8 rows)
 
 #+end_SRC
@@ -360,7 +342,7 @@ DELETE 398016
   :ID:       gt001z4ch1sc00l
   :END:
 * Final notes                                                        :export:
-If a test with these calls gets merged, **test coverage will go up by N points**
+If a test with these calls gets merged, *test coverage will go up by 4 points*
 
 This test is also created with the goal of conformance promotion.
 
