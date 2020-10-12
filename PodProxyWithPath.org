@@ -13,9 +13,10 @@
 - [ ] two weeks soak start date : testgrid-link
 - [ ] two weeks soak end date :
 - [ ] test promotion pr : kubernetes/kubernetes#?
+
 * Identifying an untested feature Using APISnoop                     :export:
 
-According to this APIsnoop query, there are still some remaining RESOURCENAME endpoints which are untested.
+  According to this APIsnoop query, there are still some remaining ProxyWithPath endpoints which are untested.
 
 with this query you can filter untested endpoints by their category and eligiblity for conformance.
 e.g below shows a query to find all conformance eligible untested,stable,core endpoints
@@ -25,7 +26,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
     SELECT
       endpoint,
       -- k8s_action,
-      -- path,
+      path,
       -- description,
       kind
       FROM testing.untested_stable_endpoint
@@ -38,21 +39,22 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
  #+RESULTS: untested_stable_core_endpoints
  #+begin_SRC example
-                     endpoint                    |      kind
- ------------------------------------------------+-----------------
-  connectCoreV1PutNamespacedPodProxyWithPath     | PodProxyOptions
-  connectCoreV1PostNamespacedPodProxyWithPath    | PodProxyOptions
-  connectCoreV1PatchNamespacedPodProxyWithPath   | PodProxyOptions
-  connectCoreV1OptionsNamespacedPodProxyWithPath | PodProxyOptions
-  connectCoreV1HeadNamespacedPodProxyWithPath    | PodProxyOptions
-  connectCoreV1DeleteNamespacedPodProxyWithPath  | PodProxyOptions
+                     endpoint                    |                          path                           |      kind
+ ------------------------------------------------+---------------------------------------------------------+-----------------
+  connectCoreV1PutNamespacedPodProxyWithPath     | /api/v1/namespaces/{namespace}/pods/{name}/proxy/{path} | PodProxyOptions
+  connectCoreV1PostNamespacedPodProxyWithPath    | /api/v1/namespaces/{namespace}/pods/{name}/proxy/{path} | PodProxyOptions
+  connectCoreV1PatchNamespacedPodProxyWithPath   | /api/v1/namespaces/{namespace}/pods/{name}/proxy/{path} | PodProxyOptions
+  connectCoreV1OptionsNamespacedPodProxyWithPath | /api/v1/namespaces/{namespace}/pods/{name}/proxy/{path} | PodProxyOptions
+  connectCoreV1HeadNamespacedPodProxyWithPath    | /api/v1/namespaces/{namespace}/pods/{name}/proxy/{path} | PodProxyOptions
+  connectCoreV1DeleteNamespacedPodProxyWithPath  | /api/v1/namespaces/{namespace}/pods/{name}/proxy/{path} | PodProxyOptions
  (6 rows)
 
  #+end_SRC
 
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
-- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1][client-go]]
+- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-proxy-operations-pod-v1-core-strong-][Kubernetes 1.19: Pod v1 Core: Proxy Operations]]
 
 * The mock test                                                      :export:
 ** Test outline
@@ -182,9 +184,6 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          Transport: restTransport,
        }
 
-       // urlString := config.Host + "/api/v1/namespaces/" + ns + "/pods/agnhost/proxy/some/path"
-       // fmt.Printf("Starting http.Client for %s\n", urlString)
-
        for _, httpVerb := range httpVerbs {
 
          urlString := config.Host + "/api/v1/namespaces/" + ns + "/pods/agnhost/proxy/some/path/with/" + httpVerb
@@ -230,6 +229,10 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
    #+RESULTS: Mock Test In Go
    #+begin_src go
    Creating pod...
+   Pod Quantity: 1 Status: Pending
+   Pod Quantity: 1 Status: Pending
+   Pod Quantity: 1 Status: Pending
+   Pod Quantity: 1 Status: Pending
    Pod Quantity: 1 Status: Pending
    Pod Quantity: 1 Status: Pending
    Pod Status: Running
@@ -289,13 +292,13 @@ DELETE 977385
 #+begin_SRC example
      useragent     |                   endpoint                    | hit_by_ete | hit_by_new_test
 -------------------+-----------------------------------------------+------------+-----------------
- live-test-writing | connectCoreV1PostNamespacedPodProxyWithPath   | f          |               7
- live-test-writing | connectCoreV1PatchNamespacedPodProxyWithPath  | f          |               8
- live-test-writing | connectCoreV1DeleteNamespacedPodProxyWithPath | f          |               8
- live-test-writing | connectCoreV1PutNamespacedPodProxyWithPath    | f          |               8
- live-test-writing | connectCoreV1GetNamespacedPodProxyWithPath    | t          |              15
- live-test-writing | listCoreV1NamespacedPod                       | t          |              14
- live-test-writing | createCoreV1NamespacedPod                     | t          |               5
+ live-test-writing | connectCoreV1PostNamespacedPodProxyWithPath   | f          |               9
+ live-test-writing | connectCoreV1PatchNamespacedPodProxyWithPath  | f          |               9
+ live-test-writing | connectCoreV1DeleteNamespacedPodProxyWithPath | f          |               9
+ live-test-writing | connectCoreV1PutNamespacedPodProxyWithPath    | f          |               9
+ live-test-writing | connectCoreV1GetNamespacedPodProxyWithPath    | t          |              18
+ live-test-writing | listCoreV1NamespacedPod                       | t          |              42
+ live-test-writing | createCoreV1NamespacedPod                     | t          |               6
 (7 rows)
 
 #+end_SRC
@@ -321,7 +324,7 @@ DELETE 977385
   :ID:       gt001z4ch1sc00l
   :END:
 * Final notes                                                        :export:
-If a test with these calls gets merged, **test coverage will go up by N points**
+If a test with these calls gets merged, *test coverage will go up by 4 points*
 
 This test is also created with the goal of conformance promotion.
 
@@ -333,9 +336,7 @@ This test is also created with the goal of conformance promotion.
 /area conformance
 
 * scratch
-* Exploring missing endpoints                                        :export:
-
-** Question
+* Exploring / Questions about missing endpoints                     :export:
 
 Where/How does PATCH/HEAD/OPTIONS requests for the following endpoints line up with the API reference?
 
@@ -343,20 +344,22 @@ Where/How does PATCH/HEAD/OPTIONS requests for the following endpoints line up w
 - connectCoreV1HeadNamespacedPodProxyWithPath
 - connectCoreV1OptionsNamespacedPodProxyWithPath
 
-*** Pod v1 core: Proxy Operations
+*Pod v1 core: Proxy Operations*
 
 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-proxy-operations-pod-v1-core-strong-
 
-- POST   Create Connect Proxy
-         Create Connect Proxy Path
-- DELETE Delete Connect Proxy
-         Delete Connect Proxy Path
-- GET    Get Connect Proxy
-         Get Connect Proxy Path
-- HEAD   Head Connect Proxy
-         Head Connect Proxy Path
-- PUT    Replace Connect Proxy
-         Replace Connect Proxy Path
+| httpVerb | Endpoint                   |
+|----------+----------------------------|
+| POST     | Create Connect Proxy       |
+|          | Create Connect Proxy Path  |
+| DELETE   | Delete Connect Proxy       |
+|          | Delete Connect Proxy Path  |
+| GET      | Get Connect Proxy          |
+|          | Get Connect Proxy Path     |
+| HEAD     | Head Connect Proxy         |
+|          | Head Connect Proxy Path    |
+| PUT      | Replace Connect Proxy      |
+|          | Replace Connect Proxy Path |
 
 * Locate why 2 endpoints are missing                                 :export:
 
