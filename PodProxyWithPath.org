@@ -143,6 +143,8 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
        ns := "default" // f.Namespace.Name
        httpVerbs := []string{"DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"}
+       // httpVerbs := []string{"HEAD"}
+       // httpVerbs := []string{"OPTIONS"}
 
        fmt.Println("Creating pod...")
        _, err = ClientSet.CoreV1().Pods(ns).Create(context.TODO(), &v1.Pod{
@@ -180,11 +182,13 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
          Transport: restTransport,
        }
 
-       urlString := config.Host + "/api/v1/namespaces/" + ns + "/pods/agnhost/proxy/some/path"
-       fmt.Printf("Starting http.Client for %s\n", urlString)
+       // urlString := config.Host + "/api/v1/namespaces/" + ns + "/pods/agnhost/proxy/some/path"
+       // fmt.Printf("Starting http.Client for %s\n", urlString)
 
        for _, httpVerb := range httpVerbs {
 
+         urlString := config.Host + "/api/v1/namespaces/" + ns + "/pods/agnhost/proxy/some/path/with/" + httpVerb
+         fmt.Printf("Starting http.Client for %s\n", urlString)
          request, err := http.NewRequest(httpVerb, urlString, nil)
          ExpectNoError(err, "processing request")
 
@@ -229,13 +233,19 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
    Pod Quantity: 1 Status: Pending
    Pod Quantity: 1 Status: Pending
    Pod Status: Running
-   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/DELETE
    http.Client request:DELETE StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/GET
    http.Client request:GET StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/HEAD
    http.Client request:HEAD StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/OPTIONS
    http.Client request:OPTIONS StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/PATCH
    http.Client request:PATCH StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/POST
    http.Client request:POST StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/pods/agnhost/proxy/some/path/with/PUT
    http.Client request:PUT StatusCode:200
    [status] complete
    #+end_src
@@ -249,7 +259,7 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
-DELETE 206067
+DELETE 977385
 #+end_SRC
 
 ** Discover useragents:
@@ -279,13 +289,13 @@ DELETE 206067
 #+begin_SRC example
      useragent     |                   endpoint                    | hit_by_ete | hit_by_new_test
 -------------------+-----------------------------------------------+------------+-----------------
- live-test-writing | connectCoreV1PostNamespacedPodProxyWithPath   | f          |               3
- live-test-writing | connectCoreV1PatchNamespacedPodProxyWithPath  | f          |               3
- live-test-writing | connectCoreV1DeleteNamespacedPodProxyWithPath | f          |               3
- live-test-writing | connectCoreV1PutNamespacedPodProxyWithPath    | f          |               3
- live-test-writing | connectCoreV1GetNamespacedPodProxyWithPath    | t          |               6
- live-test-writing | listCoreV1NamespacedPod                       | t          |               6
- live-test-writing | createCoreV1NamespacedPod                     | t          |               2
+ live-test-writing | connectCoreV1PostNamespacedPodProxyWithPath   | f          |               7
+ live-test-writing | connectCoreV1PatchNamespacedPodProxyWithPath  | f          |               8
+ live-test-writing | connectCoreV1DeleteNamespacedPodProxyWithPath | f          |               8
+ live-test-writing | connectCoreV1PutNamespacedPodProxyWithPath    | f          |               8
+ live-test-writing | connectCoreV1GetNamespacedPodProxyWithPath    | t          |              15
+ live-test-writing | listCoreV1NamespacedPod                       | t          |              14
+ live-test-writing | createCoreV1NamespacedPod                     | t          |               5
 (7 rows)
 
 #+end_SRC
@@ -323,19 +333,135 @@ This test is also created with the goal of conformance promotion.
 /area conformance
 
 * scratch
-#+BEGIN_SRC
-CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
-  SELECT
-    ec.*,
-    ao.description,
-    ao.http_method
-    FROM endpoint_coverage ec
-           JOIN
-           api_operation_material ao ON (ec.bucket = ao.bucket AND ec.job = ao.job AND ec.operation_id = ao.operation_id)
-   WHERE ec.level = 'stable'
-     AND tested is false
-     AND ao.deprecated IS false
-     AND ec.job != 'live'
-   ORDER BY hit desc
-            ;
-#+END_SRC
+* Exploring missing endpoints                                        :export:
+
+** Question
+
+Where/How does PATCH/HEAD/OPTIONS requests for the following endpoints line up with the API reference?
+
+- connectCoreV1PatchNamespacedPodProxyWithPath
+- connectCoreV1HeadNamespacedPodProxyWithPath
+- connectCoreV1OptionsNamespacedPodProxyWithPath
+
+*** Pod v1 core: Proxy Operations
+
+https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-proxy-operations-pod-v1-core-strong-
+
+- POST   Create Connect Proxy
+         Create Connect Proxy Path
+- DELETE Delete Connect Proxy
+         Delete Connect Proxy Path
+- GET    Get Connect Proxy
+         Get Connect Proxy Path
+- HEAD   Head Connect Proxy
+         Head Connect Proxy Path
+- PUT    Replace Connect Proxy
+         Replace Connect Proxy Path
+
+* Locate why 2 endpoints are missing
+
+https://apisnoop.cncf.io/conformance-progress/endpoints/1.9.0?filter=promotedWithoutTests&filter=untested shows the following endpoints are listed as valid endpoints;
+
+- connectCoreV1HeadNamespacedPodProxyWithPath
+- connectCoreV1OptionsNamespacedPodProxyWithPath
+
+** Missing HEAD requests
+
+These requests are getting logged as a =get= verb.
+
+Line 24520: api/openapi-spec
+
+#+begin_src json
+      "head": {
+        "consumes": [
+          "*/*"
+        ],
+        "description": "connect HEAD requests to proxy of Pod",
+        "operationId": "connectCoreV1HeadNamespacedPodProxyWithPath",
+        "produces": [
+          "*/*"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "schemes": [
+          "https"
+        ],
+        "tags": [
+          "core_v1"
+        ],
+        "x-kubernetes-action": "connect",
+        "x-kubernetes-group-version-kind": {
+          "group": "",
+          "kind": "PodProxyOptions",
+          "version": "v1"
+        }
+#+end_src
+
+** Missing OPTIONS requests
+
+Line 24553: api/openapi-spec
+
+#+begin_src json
+      "options": {
+        "consumes": [
+          "*/*"
+        ],
+        "description": "connect OPTIONS requests to proxy of Pod",
+        "operationId": "connectCoreV1OptionsNamespacedPodProxyWithPath",
+        "produces": [
+          "*/*"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "schemes": [
+          "https"
+        ],
+        "tags": [
+          "core_v1"
+        ],
+        "x-kubernetes-action": "connect",
+        "x-kubernetes-group-version-kind": {
+          "group": "",
+          "kind": "PodProxyOptions",
+          "version": "v1"
+        }
+#+end_src
+
+** Verbs missing
+
+Looking at snoopUtils.py there doesn't look to be a mapping for the above methods.
+
+#+begin_src python
+VERB_TO_METHOD={
+    'get': 'get',
+    'list': 'get',
+    'proxy': 'proxy',
+    'create': 'post',
+    'post':'post',
+    'put':'post',
+    'update':'put',
+    'patch':'patch',
+    'connect':'connect',
+    'delete':'delete',
+    'deletecollection':'delete',
+    'watch':'get'
+}
+#+end_src
