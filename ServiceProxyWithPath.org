@@ -1,0 +1,374 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Write ServiceProxyWithPath Mock Test
+#+AUTHOR: Stephen Heywood
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+* TODO Progress [1/6]                                                :export:
+- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/ServiceProxyWithPath.org][ServiceProxyWithPath.org]]
+- [ ] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
+- [ ] test pr : kuberenetes/kubernetes#
+- [ ] two weeks soak start date : testgrid-link
+- [ ] two weeks soak end date :
+- [ ] test promotion pr : kubernetes/kubernetes#?
+* Identifying an untested feature Using APISnoop                     :export:
+
+According to this APIsnoop query, there are still some remaining ProxyWithPath endpoints which are untested.
+
+with this query you can filter untested endpoints by their category and eligiblity for conformance.
+e.g below shows a query to find all conformance eligible untested,stable,core endpoints
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      -- k8s_action,
+      path,
+      -- description,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and category = 'core'
+      and endpoint like '%ServiceProxyWithPath'
+      order by kind, endpoint desc
+      limit 25;
+  #+end_src
+
+ #+RESULTS: untested_stable_core_endpoints
+ #+begin_SRC example
+                       endpoint                      |                            path                             |        kind
+ ----------------------------------------------------+-------------------------------------------------------------+---------------------
+  connectCoreV1PutNamespacedServiceProxyWithPath     | /api/v1/namespaces/{namespace}/services/{name}/proxy/{path} | ServiceProxyOptions
+  connectCoreV1PostNamespacedServiceProxyWithPath    | /api/v1/namespaces/{namespace}/services/{name}/proxy/{path} | ServiceProxyOptions
+  connectCoreV1PatchNamespacedServiceProxyWithPath   | /api/v1/namespaces/{namespace}/services/{name}/proxy/{path} | ServiceProxyOptions
+  connectCoreV1OptionsNamespacedServiceProxyWithPath | /api/v1/namespaces/{namespace}/services/{name}/proxy/{path} | ServiceProxyOptions
+  connectCoreV1HeadNamespacedServiceProxyWithPath    | /api/v1/namespaces/{namespace}/services/{name}/proxy/{path} | ServiceProxyOptions
+  connectCoreV1DeleteNamespacedServiceProxyWithPath  | /api/v1/namespaces/{namespace}/services/{name}/proxy/{path} | ServiceProxyOptions
+ (6 rows)
+
+ #+end_SRC
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1][client-go]]
+- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-proxy-operations-service-v1-core-strong-][Kubernetes 1.19: Service v1 Core: Proxy Operations]]
+
+* The mock test                                                      :export:
+** Test outline
+1. Create a pod with a static label using the agnhost image
+
+2. Confirm that the pod is in the running phase
+
+3. Create a service and link it to the pod
+
+4. Iterate through a list of http methods and check the response from the porter app
+
+5. Confirm that the delete response code is 404 OK
+
+6. Confirm that all other response codes are 200 OK
+
+** Test the functionality in Go
+   #+NAME: Mock Test In Go
+   #+begin_src go
+     package main
+
+     import (
+       // "encoding/json"
+       "context"
+       "flag"
+       "fmt"
+       "net/http"
+       "os"
+       "time"
+
+       v1 "k8s.io/api/core/v1"
+       // "k8s.io/client-go/dynamic"
+       // "k8s.io/apimachinery/pkg/runtime/schema"
+       metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+       "k8s.io/apimachinery/pkg/util/wait"
+       "k8s.io/client-go/kubernetes"
+       "k8s.io/client-go/transport"
+       // "k8s.io/apimachinery/pkg/types"
+       "k8s.io/client-go/tools/clientcmd"
+       "k8s.io/apimachinery/pkg/util/intstr"
+     )
+
+     // helper function that mirrors framework.ExpectNoError
+     func ExpectNoError(err error, msg string) {
+       if err != nil {
+         errMsg := msg + fmt.Sprintf(" %v\n", err)
+         os.Stderr.WriteString(errMsg)
+         os.Exit(1)
+       }
+     }
+
+     // helper function that mirrors framework.ExpectEqual
+     func ExpectEqual(a int, b int, msg string, i interface{}) {
+       if a != b {
+         errMsg := msg + fmt.Sprintf(" %v\n", i)
+         os.Stderr.WriteString(errMsg)
+         os.Exit(1)
+       }
+     }
+
+     // helper function to inspect various interfaces
+     func inspect(level int, name string, i interface{}) {
+       fmt.Printf("Inspecting: %s\n", name)
+       fmt.Printf("Inspect level: %d   Type: %T\n", level, i)
+       switch level {
+       case 1:
+         fmt.Printf("%+v\n\n", i)
+       case 2:
+         fmt.Printf("%#v\n\n", i)
+       default:
+         fmt.Printf("%v\n\n", i)
+       }
+     }
+
+     const (
+       podRetryPeriod  = 1 * time.Second
+       podRetryTimeout = 1 * time.Minute
+     )
+
+     func main() {
+       // uses the current context in kubeconfig
+       kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+       flag.Parse()
+       config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+       ExpectNoError(err, "Could not build config from flags")
+       // make our work easier to find in the audit_event queries
+       config.UserAgent = "live-test-writing"
+       // creates the clientset
+       ClientSet, _ := kubernetes.NewForConfig(config)
+       // DynamicClientSet, _ := dynamic.NewForConfig(config)
+       // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
+       // TEST BEGINS HERE
+
+       ns := "default" // f.Namespace.Name
+
+       fmt.Println("Creating pod...")
+       _, err = ClientSet.CoreV1().Pods(ns).Create(context.TODO(), &v1.Pod{
+         ObjectMeta: metav1.ObjectMeta{
+           Name: "agnhost",
+           Labels: map[string]string{
+             "test": "response"},
+         },
+         Spec: v1.PodSpec{
+           Containers: []v1.Container{{
+             Image:   "us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost:2.21",
+             Name:    "agnhost",
+             Command: []string{"/agnhost", "porter"},
+             Env: []v1.EnvVar{{
+               Name:  "SERVE_PORT_80",
+               Value: "foo",
+             }},
+           }},
+           RestartPolicy: v1.RestartPolicyNever,
+         }}, metav1.CreateOptions{})
+       ExpectNoError(err, "failed to create pod")
+
+       err = wait.PollImmediate(podRetryPeriod, podRetryTimeout, checkPodStatus(ClientSet, "test=response"))
+       ExpectNoError(err, "Pod didn't start within time out period")
+
+       _, err = ClientSet.CoreV1().Services(ns).Create(context.TODO(), &v1.Service{
+         ObjectMeta: metav1.ObjectMeta{
+           Name: "test-service",
+           Namespace: ns,
+           Labels: map[string]string{
+             "test": "response",
+           },
+         },
+         Spec: v1.ServiceSpec{
+           Ports: []v1.ServicePort{{
+             Port: 80,
+             TargetPort: intstr.FromInt(80),
+             Protocol: v1.ProtocolTCP,
+           }},
+           Selector: map[string]string{
+             "test": "response",
+           },
+         }}, metav1.CreateOptions{})
+       ExpectNoError(err, "Failed to create the service")
+       fmt.Println("Service created")
+
+       transportCfg, err := config.TransportConfig()
+       ExpectNoError(err, "Error creating transportCfg")
+       restTransport, err := transport.New(transportCfg)
+       ExpectNoError(err, "Error creating restTransport")
+
+       client := &http.Client{
+         CheckRedirect: func(req *http.Request, via []*http.Request) error {
+           return http.ErrUseLastResponse
+         },
+         Transport: restTransport,
+       }
+
+       httpVerbs := []string{"DELETE"}
+       for _, httpVerb := range httpVerbs {
+
+         urlString := config.Host + "/api/v1/namespaces/" + ns + "/services/test-service/proxy/some/path/with/" + httpVerb
+         fmt.Printf("Starting http.Client for %s\n", urlString)
+         request, err := http.NewRequest(httpVerb, urlString, nil)
+         ExpectNoError(err, "processing request")
+
+         resp, err := client.Do(request)
+         ExpectNoError(err, "processing response")
+         defer resp.Body.Close()
+
+         fmt.Printf("http.Client request:%s StatusCode:%d\n", httpVerb, resp.StatusCode)
+         ExpectEqual(resp.StatusCode, 404, "The resp.StatusCode returned: %d", resp.StatusCode)
+       }
+
+       httpVerbs = []string{"GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"}
+       for _, httpVerb := range httpVerbs {
+
+         urlString := config.Host + "/api/v1/namespaces/" + ns + "/services/test-service/proxy/some/path/with/" + httpVerb
+         fmt.Printf("Starting http.Client for %s\n", urlString)
+         request, err := http.NewRequest(httpVerb, urlString, nil)
+         ExpectNoError(err, "processing request")
+
+         resp, err := client.Do(request)
+         ExpectNoError(err, "processing response")
+         defer resp.Body.Close()
+
+         fmt.Printf("http.Client request:%s StatusCode:%d\n", httpVerb, resp.StatusCode)
+         ExpectEqual(resp.StatusCode, 200, "The resp.StatusCode returned: %d", resp.StatusCode)
+       }
+       // TEST ENDS HERE
+
+       fmt.Println("[status] complete")
+
+     }
+
+     func checkPodStatus(cs *kubernetes.Clientset, label string) func() (bool, error) {
+       return func() (bool, error) {
+         var err error
+
+         list, err := cs.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{
+           LabelSelector: label})
+
+         if err != nil {
+           return false, err
+         }
+
+         if list.Items[0].Status.Phase != "Running" {
+           fmt.Printf("Pod Quantity: %d Status: %s\n", len(list.Items), list.Items[0].Status.Phase)
+           return false, err
+         }
+         fmt.Printf("Pod Status: %v\n", list.Items[0].Status.Phase)
+         return true, nil
+       }
+     }
+   #+end_src
+
+   #+RESULTS: Mock Test In Go
+   #+begin_src go
+   Creating pod...
+   Pod Quantity: 1 Status: Pending
+   Pod Quantity: 1 Status: Pending
+   Pod Status: Running
+   Service created
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/DELETE
+   http.Client request:DELETE StatusCode:404
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/GET
+   http.Client request:GET StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/HEAD
+   http.Client request:HEAD StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/OPTIONS
+   http.Client request:OPTIONS StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/PATCH
+   http.Client request:PATCH StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/POST
+   http.Client request:POST StatusCode:200
+   Starting http.Client for https://kubernetes.default/api/v1/namespaces/default/services/test-service/proxy/some/path/with/PUT
+   http.Client request:PUT StatusCode:200
+   [status] complete
+   #+end_src
+
+* Verifying increase in coverage with APISnoop                       :export:
+** Reset stats
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+delete from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 398016
+#+end_SRC
+
+** Discover useragents:
+
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select distinct useragent
+      from testing.audit_event
+     where useragent like 'live%';
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+       useragent
+  -------------------
+   live-test-writing
+  (1 row)
+
+  #+end_SRC
+
+** List endpoints hit by the test:
+
+#+begin_src sql-mode :exports both :session none
+  select * from testing.endpoint_hit_by_new_test ORDER BY hit_by_ete;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+     useragent     |                     endpoint                      | hit_by_ete | hit_by_new_test
+-------------------+---------------------------------------------------+------------+-----------------
+ live-test-writing | connectCoreV1DeleteNamespacedServiceProxyWithPath | f          |               8
+ live-test-writing | connectCoreV1PatchNamespacedServiceProxyWithPath  | f          |               8
+ live-test-writing | connectCoreV1PostNamespacedServiceProxyWithPath   | f          |               7
+ live-test-writing | connectCoreV1PutNamespacedServiceProxyWithPath    | f          |               8
+ live-test-writing | listCoreV1NamespacedPod                           | t          |              15
+ live-test-writing | connectCoreV1GetNamespacedServiceProxyWithPath    | t          |              15
+ live-test-writing | createCoreV1NamespacedPod                         | t          |               5
+ live-test-writing | createCoreV1NamespacedService                     | t          |               5
+(8 rows)
+
+#+end_SRC
+
+** Display endpoint coverage change:
+
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select * from testing.projected_change_in_coverage;
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+     category    | total_endpoints | old_coverage | new_coverage | change_in_number
+  ---------------+-----------------+--------------+--------------+------------------
+   test_coverage |             831 |          306 |          310 |                4
+  (1 row)
+
+  #+end_SRC
+
+* Convert to Ginkgo Test
+** Ginkgo Test
+  :PROPERTIES:
+  :ID:       gt001z4ch1sc00l
+  :END:
+* Final notes                                                        :export:
+If a test with these calls gets merged, **test coverage will go up by N points**
+
+This test is also created with the goal of conformance promotion.
+
+-----
+/sig testing
+
+/sig architecture
+
+/area conformance
+
+* scratch
