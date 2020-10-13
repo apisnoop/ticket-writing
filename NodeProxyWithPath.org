@@ -6,9 +6,9 @@
 #+EXPORT_SELECT_TAGS: export
 #+PROPERTY: header-args:sql-mode :product postgres
 
-* TODO Progress [2/5]                                                :export:
-- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/][MyEndpoint.org]]
-- [X] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
+* TODO Progress [1/6]                                                :export:
+- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/NodeProxyWithPath.org][NodeProxyWithPath.org]]
+- [ ] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
 - [ ] test pr : kuberenetes/kubernetes#
 - [ ] two weeks soak start date : testgrid-link
 - [ ] two weeks soak end date :

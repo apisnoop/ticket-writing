@@ -1,7 +1,7 @@
-# Progress <code>[2/5]</code>
+# Progress <code>[1/6]</code>
 
--   [X] APISnoop org-flow : [MyEndpoint.org](https://github.com/cncf/apisnoop/blob/master/tickets/k8s/)
--   [X] test approval issue : [kubernetes/kubernetes#](https://github.com/kubernetes/kubernetes/issues/)
+-   [X] APISnoop org-flow : [NodeProxyWithPath.org](https://github.com/apisnoop/ticket-writing/blob/master/NodeProxyWithPath.org)
+-   [ ] test approval issue : [kubernetes/kubernetes#](https://github.com/kubernetes/kubernetes/issues/)
 -   [ ] test pr : kuberenetes/kubernetes#
 -   [ ] two weeks soak start date : testgrid-link
 -   [ ] two weeks soak end date :
