@@ -11,87 +11,54 @@
 \d+ endpoint_coverage
  #+END_SRC
 
- #+RESULTS:
- #+begin_SRC example
-                                                          View "public.endpoint_coverage"
-    Column    |  Type   | Collation | Nullable | Default | Storage  |                                 Description
- -------------+---------+-----------+----------+---------+----------+-----------------------------------------------------------------------------
-  release     | text    |           |          |         | extended | the open api release, date of endpoint details
-  endpoint    | text    |           |          |         | extended | a kubernetes endpoint, the operation_id in the spec
-  level       | text    |           |          |         | extended | alpha, beta, or stable
-  category    | text    |           |          |         | extended | endpoint category, roughly its group, taken from the first tag in the spec.
-  path        | text    |           |          |         | extended | the http path of the endpoint
-  description | text    |           |          |         | extended |
-  kind        | text    |           |          |         | extended | k8s kind  for endpoint
-  version     | text    |           |          |         | extended | k8s version for endpoint
-  group       | text    |           |          |         | extended | k8s group for endpoint
-  action      | text    |           |          |         | extended | endpoint action, roughly related to an http method
-  tested      | boolean |           |          |         | plain    | was endpoint hit at least once by a test useragent
-  conf_tested | boolean |           |          |         | plain    | was endpoint hit at least once by a conformance test useragent
-  tests       | text[]  |           |          |         | extended | array of codenames of all tests that hit this endpoint
- View definition:
-  SELECT open_api.release,
-     open_api.endpoint,
-     open_api.level,
-     open_api.category,
-     open_api.path,
-     open_api.description,
-     open_api.k8s_kind AS kind,
-     open_api.k8s_version AS version,
-     open_api.k8s_group AS "group",
-     open_api.k8s_action AS action,
-     count(audit_event.test_hit) FILTER (WHERE audit_event.test_hit IS TRUE) > 0 AS tested,
-     count(audit_event.conf_test_hit) FILTER (WHERE audit_event.conf_test_hit IS TRUE) > 0 AS conf_tested,
-     array_agg(DISTINCT audit_event.test) AS tests
-    FROM open_api
-      LEFT JOIN audit_event USING (endpoint, release)
-   WHERE open_api.deprecated IS FALSE
-   GROUP BY open_api.release, open_api.endpoint, open_api.level, open_api.category, open_api.path, open_api.description, open_api.k8s_kind, open_api.k8s_version, open_api.k8s_group, open_api.k8s_action
-   ORDER BY open_api.level DESC, open_api.endpoint;
-
- #+end_SRC
-
-
 
 
 ** Finding a test for an endpoint:
  #+begin_src sql-mode
-  select endpoint,
-         unnest(tests) as test
-    from endpoint_coverage
-   where endpoint like '%PriorityClass%'
-     and release = '1.19.0'
-    group by endpoint, test, level, category;
+   select endpoint,
+          unnest(tests) as test
+     from endpoint_coverage
+    where endpoint like '%watch%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%'
+     -- and release = '1.19.0'
+     group by endpoint, test, level, category;
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-                    endpoint                     | test
--------------------------------------------------+------
- createSchedulingV1alpha1PriorityClass           |
- createSchedulingV1beta1PriorityClass            |
- createSchedulingV1PriorityClass                 |
- deleteSchedulingV1alpha1CollectionPriorityClass |
- deleteSchedulingV1alpha1PriorityClass           |
- deleteSchedulingV1beta1CollectionPriorityClass  |
- deleteSchedulingV1beta1PriorityClass            |
- deleteSchedulingV1CollectionPriorityClass       |
- deleteSchedulingV1PriorityClass                 |
- listSchedulingV1alpha1PriorityClass             |
- listSchedulingV1beta1PriorityClass              |
- listSchedulingV1PriorityClass                   |
- patchSchedulingV1alpha1PriorityClass            |
- patchSchedulingV1beta1PriorityClass             |
- patchSchedulingV1PriorityClass                  |
- readSchedulingV1alpha1PriorityClass             |
- readSchedulingV1beta1PriorityClass              |
- readSchedulingV1PriorityClass                   |
- replaceSchedulingV1alpha1PriorityClass          |
- replaceSchedulingV1beta1PriorityClass           |
- replaceSchedulingV1PriorityClass                |
-(21 rows)
 
-#+end_SRC
+
+
+
+** Finding deprecated endpoints (Not working)
+
+
+ #+begin_src sql-mode
+ select endpoint,
+         unnest(tests) as test
+    from endpoint_coverage
+     join open_api oa using(endpoint)
+where oa.release = '1.20.0'
+-- and oa.level = 'stable'
+and oa.endpoint  like '%watch%'
+and oa.deprecated is false
+    group by endpoint, test, level, category;
+
+#+end_src
+
+
+
+** Finding deprecated endpoints
+   
+#+BEGIN_SRC sql-mode
+select distinct endpoint, deprecated
+from open_api
+where release = '1.20.0'
+and level = 'stable'
+and endpoint  like 'watch%';
+
+
+#+END_SRC
+
 
 
 
@@ -137,34 +104,13 @@ select * from conformance.new_endpoint
 
 
 
-* Describing
+** Describing
 #+begin_src sql-mode
 select * from describe_relations();
 
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-   schema    |             name             |                                                description
--------------+------------------------------+------------------------------------------------------------------------------------------------------------
- testing     | audit_event                  | every event from an e2e test run, or multiple test runs.
- testing     | endpoint_hit_by_new_test     |
- testing     | projected_change_in_coverage |
- testing     | untested_stable_endpoint     |
- public      | audit_event                  | every event from an e2e test run, or multiple test runs.
- public      | audit_event_test             | every test in the audit_log of a release
- public      | endpoint_coverage            | Coverage info for every endpoint in a release, taken from audit events for that release
- public      | open_api                     | endpoint details from openAPI spec
- conformance | coverage_per_release         | How many endopoints from a release are tested today?
- conformance | eligible_endpoint            | all current stable endpoints for which conformant tests could be written, following conformance guidelines
- conformance | ineligible_endpoint          | endpoints ineligible for conformance testing and the reason for ineligibility.
- conformance | new_endpoint                 | eligible endpoints sorted by release and whether they are tested
- conformance | progress                     | per release, the # of new, eligible endpoints and coverage ratios
- conformance | test                         | info for each conformance test, from latest conformance.yaml
-(14 rows)
-
-#+end_SRC
 
 
 
@@ -174,14 +120,6 @@ select * from describe_relation('conformance','progress');
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-                         describe_relation
--------------------------------------------------------------------
- per release, the # of new, eligible endpoints and coverage ratios
-(1 row)
-
-#+end_SRC
 
 
 #+begin_src sql-mode
@@ -190,26 +128,6 @@ select * from describe_columns('public','endpoint_coverage');
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-   column    |                                 description
--------------+-----------------------------------------------------------------------------
- release     | the open api release, date of endpoint details
- endpoint    | a kubernetes endpoint, the operation_id in the spec
- level       | alpha, beta, or stable
- category    | endpoint category, roughly its group, taken from the first tag in the spec.
- path        | the http path of the endpoint
- description |
- kind        | k8s kind  for endpoint
- version     | k8s version for endpoint
- group       | k8s group for endpoint
- action      | endpoint action, roughly related to an http method
- tested      | was endpoint hit at least once by a test useragent
- conf_tested | was endpoint hit at least once by a conformance test useragent
- tests       | array of codenames of all tests that hit this endpoint
-(13 rows)
-
-#+end_SRC
 
 
 
@@ -219,14 +137,6 @@ select * from describe_column('public','endpoint_coverage','tested');
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
- column |                    description
---------+----------------------------------------------------
- tested | was endpoint hit at least once by a test useragent
-(1 row)
-
-#+end_SRC
 
 
 #+begin_src sql-mode
@@ -235,14 +145,6 @@ select * from describe_relation('conformance','eligible_endpoint');
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-                                             describe_relation
-------------------------------------------------------------------------------------------------------------
- all current stable endpoints for which conformant tests could be written, following conformance guidelines
-(1 row)
-
-#+end_SRC
 
 
 
@@ -257,46 +159,6 @@ select * from describe_relation('conformance','eligible_endpoint');
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-                    endpoint                     |                                                                                          useragent
--------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- createSchedulingV1alpha1PriorityClass           |
- createSchedulingV1beta1PriorityClass            |
- createSchedulingV1PriorityClass                 | e2e.test/v1.20.0 (linux/amd64) kubernetes/2d8fbd6 -- [sig-scheduling] SchedulerPreemption [Serial] PreemptionExecutionPath runs ReplicaSets to verify preemption running path [Conformance]
- createSchedulingV1PriorityClass                 | e2e.test/v1.20.0 (linux/amd64) kubernetes/2d8fbd6 -- [sig-scheduling] SchedulerPreemption [Serial] validates basic preemption works [Conformance]
- createSchedulingV1PriorityClass                 | e2e.test/v1.20.0 (linux/amd64) kubernetes/2d8fbd6 -- [sig-scheduling] SchedulerPreemption [Serial] validates lower priority pod preemption by critical pod [Conformance]
- createSchedulingV1PriorityClass                 | kube-apiserver/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- deleteSchedulingV1alpha1CollectionPriorityClass |
- deleteSchedulingV1alpha1PriorityClass           |
- deleteSchedulingV1beta1CollectionPriorityClass  |
- deleteSchedulingV1beta1PriorityClass            |
- deleteSchedulingV1CollectionPriorityClass       |
- deleteSchedulingV1PriorityClass                 | e2e.test/v1.20.0 (linux/amd64) kubernetes/2d8fbd6 -- [sig-scheduling] SchedulerPreemption [Serial] PreemptionExecutionPath runs ReplicaSets to verify preemption running path [Conformance]
- deleteSchedulingV1PriorityClass                 | e2e.test/v1.20.0 (linux/amd64) kubernetes/2d8fbd6 -- [sig-scheduling] SchedulerPreemption [Serial] validates basic preemption works [Conformance]
- deleteSchedulingV1PriorityClass                 | e2e.test/v1.20.0 (linux/amd64) kubernetes/2d8fbd6 -- [sig-scheduling] SchedulerPreemption [Serial] validates lower priority pod preemption by critical pod [Conformance]
- listSchedulingV1alpha1PriorityClass             |
- listSchedulingV1beta1PriorityClass              |
- listSchedulingV1PriorityClass                   | kube-apiserver/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- listSchedulingV1PriorityClass                   | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/shared-informers
- patchSchedulingV1alpha1PriorityClass            |
- patchSchedulingV1beta1PriorityClass             |
- patchSchedulingV1PriorityClass                  |
- readSchedulingV1alpha1PriorityClass             |
- readSchedulingV1beta1PriorityClass              |
- readSchedulingV1PriorityClass                   | kube-apiserver/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- replaceSchedulingV1alpha1PriorityClass          |
- replaceSchedulingV1beta1PriorityClass           |
- replaceSchedulingV1PriorityClass                |
- watchSchedulingV1alpha1PriorityClass            |
- watchSchedulingV1alpha1PriorityClassList        |
- watchSchedulingV1beta1PriorityClass             |
- watchSchedulingV1beta1PriorityClassList         |
- watchSchedulingV1PriorityClass                  |
- watchSchedulingV1PriorityClassList              |
-(33 rows)
-
-#+end_SRC
 
 
 
@@ -306,37 +168,6 @@ select * from describe_columns('public', 'audit_event');
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-    column     |                               description
----------------+-------------------------------------------------------------------------
- release       | release this test suite was run for
- release       | release this test suite was run for
- release_date  | canonical release date (or test run date if version not released yet
- release_date  | canonical release date (or test run date if version not released yet
- audit_id      | audit event id as given in log.  Note these are not necessarily unique.
- audit_id      | audit event id as given in log.  Note these are not necessarily unique.
- endpoint      | endpoint hit by this audit event
- endpoint      | endpoint hit by this audit event
- useragent     | useragent of the event, taken from events request header
- useragent     | useragent of the event, taken from events request header
- test          | the test codename if it can be extracted from useragent, else null
- test          | the test codename if it can be extracted from useragent, else null
- test_hit      | is the useragent of the event a test?
- test_hit      | is the useragent of the event a test?
- conf_test_hit | is the useragent of the event a conformance test?
- conf_test_hit | is the useragent of the event a conformance test?
- data          | the full json of the audit event
- data          | the full json of the audit event
- source        | url of the bucket where the test run logs are stored
- source        | url of the bucket where the test run logs are stored
- id            | generated id, this will be unique
- id            | generated id, this will be unique
- ingested_at   | the time at which the audit_event was added to this table
- ingested_at   | the time at which the audit event was added to this table
-(24 rows)
-
-#+end_SRC
 
 Find the file .go containing a test
 #+begin_src sql-mode
@@ -387,20 +218,6 @@ LINE 2:   from public.test
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
- endpoint | conf_test_hit | useragent
-----------+---------------+-----------
-(0 rows)
-
-#+end_SRC
-
-#+begin_SRC example
- endpoint | conf_test_hit | useragent
-----------+---------------+-----------
-(0 rows)
-
-#+end_SRC
 
 
 
@@ -412,76 +229,11 @@ select useragent from audit_event where test is null group by useragent;
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-                                                               useragent
----------------------------------------------------------------------------------------------------------------------------------------
- agnhost/v0.0.0 (linux/amd64) kubernetes/$Format
- cluster-proportional-autoscaler/v0.0.0 (linux/amd64) kubernetes/$Format
- coredns/v0.0.0 (linux/amd64) kubernetes/$Format
- csi-attacher/v0.0.0 (linux/amd64) kubernetes/$Format
- csi-provisioner/v0.0.0 (linux/amd64) kubernetes/$Format
- csi-resizer/v0.0.0 (linux/amd64) kubernetes/$Format
- csi-snapshotter/v0.0.0 (linux/amd64) kubernetes/$Format
- curl/7.64.0
- glbc/v0.0.0 (linux/amd64) kubernetes/$Format
- glbc/v0.0.0 (linux/amd64) kubernetes/$Format/leader-election
- Go-http-client/1.1
- kube-apiserver/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/controller-discovery
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/kube-controller-manager
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/leader-election
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/metadata-informers
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/shared-informers
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:attachdetach-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:certificate-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:cloud-provider
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:clusterrole-aggregation-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:cronjob-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:daemon-set-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:deployment-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:disruption-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:endpoint-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:endpointslice-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:endpointslicemirroring-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:expand-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:generic-garbage-collector
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:job-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:namespace-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:node-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:persistent-volume-binder
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:pvc-protection-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:pv-protection-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:replicaset-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:replication-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:resourcequota-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:route-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:service-account-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:service-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:statefulset-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/system:serviceaccount:kube-system:ttl-controller
- kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/tokens-controller
- kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
- kubectl/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- kubelet/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- kube-probe/1.20+
- kube-proxy/v1.20.0 (linux/amd64) kubernetes/2d8fbd6
- kube-scheduler/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/leader-election
- kube-scheduler/v1.20.0 (linux/amd64) kubernetes/2d8fbd6/scheduler
- metrics-server/v0.0.0 (linux/amd64) kubernetes/$Format
- nfs-provisioner/v0.0.0 (linux/amd64) kubernetes/$Format
- node-problem-detector/v0.8.0
- pod_nanny/1.8.11
- sample-apiserver/v0.0.0 (linux/amd64) kubernetes/$Format
- snapshot-controller/v0.0.0 (linux/amd64) kubernetes/$Format
-(58 rows)
-
-#+end_SRC
 
 
 
 
-* See what endpoints are het by a spesific test
+* See what endpoints are hit by a spesific test
 
 #+begin_src sql-mode
 select audit_id, endpoint
@@ -491,30 +243,3 @@ select audit_id, endpoint
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-               audit_id               |                    endpoint
---------------------------------------+------------------------------------------------
- 1ebc48de-c7de-44c1-a8ed-7739aa2f9f1e | createAuthorizationV1SubjectAccessReview
- f65e2b66-03da-4851-9470-96a181b80e97 | createCoreV1Namespace
- e5856da2-1eb8-499c-8d84-9b3083d762ca | createCoreV1Namespace
- 5402699b-407e-4545-98a5-c8e2c6092a0a | createRbacAuthorizationV1NamespacedRoleBinding
- 45bf4921-28c0-4891-adcd-30997534effb | deleteCoreV1Namespace
- 6c7b5798-b1a9-414b-a509-dfd3f573201d | deleteCoreV1Namespace
- 1871d448-70e6-4ef7-982d-2f7dc298c1fc | listCoreV1NamespacedServiceAccount
- 1871d448-70e6-4ef7-982d-2f7dc298c1fc | listCoreV1NamespacedServiceAccount
- e07e6aa7-4604-4924-a7fb-f1d6299daca1 | listCoreV1NamespacedServiceAccount
- e07e6aa7-4604-4924-a7fb-f1d6299daca1 | listCoreV1NamespacedServiceAccount
- 123b5215-53db-4851-b68d-9b685f33b1ea | listCoreV1NamespacedServiceAccount
- b3e3cb76-2572-47af-8278-94ead129817f | listCoreV1NamespacedServiceAccount
- ce1438d0-30dd-45e6-be08-437f042738b1 | listCoreV1NamespacedServiceAccount
- b3e3cb76-2572-47af-8278-94ead129817f | listCoreV1NamespacedServiceAccount
- 85a6e5eb-74e7-4269-b694-e5b52b512d14 | listCoreV1NamespacedServiceAccount
- 60dee9ae-0e21-41eb-a4d2-bdcef0f68930 | listCoreV1NamespacedServiceAccount
- 60dee9ae-0e21-41eb-a4d2-bdcef0f68930 | listCoreV1NamespacedServiceAccount
- ad314d3b-d75e-488f-bb0b-8d50b81147d8 | listCoreV1NamespacedServiceAccount
- 11367f6f-72da-4789-bcb4-4504c70666f9 | listCoreV1Node
- 41e80717-4637-443b-aa4e-301b173913c1 | listCoreV1Node
-(20 rows)
-
-#+end_SRC
