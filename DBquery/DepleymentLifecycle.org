@@ -1,0 +1,52 @@
+#+Title: Calrify PR #93458 Endpoints
+
+*** Test to show what endpoints get hit by the test:
+#+begin_src sql-mode
+  select distinct endpoint
+    from audit_event
+   where test like '%[sig-apps] Deployment should run the lifecycle of a Deployment%'
+       and endpoint like '%Deployment%'
+   order by endpoint;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint
+--------------------------------------------
+ createAppsV1NamespacedDeployment
+ deleteAppsV1CollectionNamespacedDeployment
+ listAppsV1DeploymentForAllNamespaces
+ listAppsV1NamespacedDeployment
+ patchAppsV1NamespacedDeployment
+ patchAppsV1NamespacedDeploymentStatus
+ readAppsV1NamespacedDeploymentStatus
+ replaceAppsV1NamespacedDeployment
+(8 rows)
+
+#+end_SRC
+
+
+
+*** Endpoint that we where expecting to be hit by the test from Previous checks:
+createAppsV1NamespacedDeployment Tested 1.9
+listAppsV1NamespacedDeployment Tested  1.9
+replaceAppsV1NamespacedDeployment Tested 1.12
+readAppsV1NamespacedDeploymentStatus *
+patchAppsV1NamespacedDeploymentStatus *
+patchAppsV1NamespacedDeployment *
+listAppsV1DeploymentForAllNamespaces *
+deleteAppsV1CollectionNamespacedDeployment *
+
+These match the list above and include the list below as seen in APISnoop
+
+*** Covered by [[https://github.com/kubernetes/kubernetes/pull/93458][#93458]] * as seen in APISnoop
+readAppsV1NamespacedDeploymentStatus
+patchAppsV1NamespacedDeploymentStatus
+patchAppsV1NamespacedDeployment
+listAppsV1DeploymentForAllNamespaces
+deleteAppsV1CollectionNamespacedDeployment
+
+*** Conclusion:
+Even though the test hit 8 endpoints, 3 of the endpoint was hit in previous releases.
+APISnoop result is valid.
