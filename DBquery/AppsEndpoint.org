@@ -1,0 +1,83 @@
+#+Title: Appsendpoint checks for 1.9 technical debt
+
+
+
+‥○ Finding a test for an endpoint:
+-- #+begin_src sql-mode
+   select endpoint,
+          unnest(tests) as test
+     from endpoint_coverage
+    where endpoint like '%Apps%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%'
+     -- and release = '1.19.0'
+     group by endpoint, test, level, category;
+#+end_src
+
+
+
+‥○ Finding deprecated endpoints
+
+--#+BEGIN_SRC sql-mode
+select distinct endpoint, deprecated
+from open_api
+where release = '1.20.0'
+and level = 'stable'
+and endpoint  like 'Apps%';
+
+
+#+END_SRC
+
+
+
+
+‥○ List endpoints from conformance file
+
+--#+begin_src sql-mode
+select * from conformance.new_endpoint
+-- where tested = 'f';
+ where endpoint ilike '%Apps%' limit 70;
+#+end_src
+
+
+
+◉ Running queries
+
+--#+begin_src sql-mode
+  select endpoint, useragent
+    from open_api
+     left join audit_event using(endpoint)
+   where endpoint like '%Apps%'
+  group by endpoint, useragent;
+
+#+end_src
+
+
+
+
+◉ Are endpoints hit by a test?
+--#+begin_src sql-mode
+  select endpoint, conf_test_hit, useragent
+    from open_api
+         Left join audit_event using(endpoint)
+   where endpoint like '%Apps%'
+   --  and category = 'core'
+   group by endpoint, conf_test_hit, useragent;
+
+
+
+#+end_src                                                                                   
+                                                                                            
+                                                                                                    
+                                                                                                   
+                                                                                                   
+◉ See what endpoints are hit by a spesific test                                                    
+                                                                                                   
+--#+begin_src sql-mode
+  select distinct endpoint                                                                         
+    from audit_event                                                                               
+   where test like '%[sig-apps] Deployment should run the lifecycle of a Deployment%'              
+       and endpoint like '%Apps%'                                                                  
+   order by endpoint;                                                                              
+                                                                                                   
+#+end_src
