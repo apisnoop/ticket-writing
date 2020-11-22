@@ -11,8 +11,6 @@
 #+end_src
 
 *** RESULTS:
-                  endpoint
---------------------------------------------
 - createAppsV1NamespacedDeployment
 - deleteAppsV1CollectionNamespacedDeployment
 - listAppsV1DeploymentForAllNamespaces
