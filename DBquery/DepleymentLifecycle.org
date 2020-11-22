@@ -10,7 +10,7 @@
 
 #+end_src
 
-#+RESULTS:
+*** RESULTS:
                   endpoint
 --------------------------------------------
 - createAppsV1NamespacedDeployment
