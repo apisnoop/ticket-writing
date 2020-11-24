@@ -1016,3 +1016,75 @@ select * from conformance.new_endpoint
 (9 rows)
 
 #+end_SRC
+
+
+
+*** Temp: check for Pod Test PR
+
+#+begin_src sql-mode
+  select distinct endpoint
+    from audit_event
+   where test like '%[k8s.io] Pods should run through the lifecycle of Pods and PodStatus%'
+    --   and endpoint like '%Pod%'                                                                  
+   order by endpoint;                                                                              
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                    endpoint
+------------------------------------------------
+ createAuthorizationV1SubjectAccessReview
+ createCoreV1Namespace
+ createCoreV1NamespacedPod
+ createRbacAuthorizationV1NamespacedRoleBinding
+ deleteCoreV1CollectionNamespacedPod
+ deleteCoreV1Namespace
+ listCoreV1NamespacedPod
+ listCoreV1NamespacedServiceAccount
+ listCoreV1Node
+ listCoreV1PodForAllNamespaces
+ patchCoreV1NamespacedPod
+ readCoreV1NamespacedPod
+ readCoreV1NamespacedPodStatus
+ replaceCoreV1NamespacedPodStatus
+(14 rows)
+
+#+end_SRC
+
+#+begin_src sql-mode
+    select distinct endpoint, test, test.release, audit_event. source
+      from audit_event
+           left join conformance.test test on (audit_event.test = test.codename)
+     where endpoint = any('{"listCoreV1PodForAllNamespaces","replaceCoreV1NamespacedPodStatus","readCoreV1NamespacedPodStatus"}');
+  ;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+             endpoint             |                                                                                    test                                                                                    | release |                                                    source
+----------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------+---------------------------------------------------------------------------------------------------------------
+ listCoreV1PodForAllNamespaces    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ listCoreV1PodForAllNamespaces    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [k8s.io] [sig-node] NodeProblemDetector [DisabledForLargeClusters] should run without error                                                                                |         | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ listCoreV1PodForAllNamespaces    | [k8s.io] [sig-node] NoExecuteTaintManager Multiple Pods [Serial] evicts pods with minTolerationSeconds [Disruptive] [Conformance]                                          | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [k8s.io] [sig-node] NoExecuteTaintManager Single Pod [Serial] removing taint cancels eviction [Disruptive] [Conformance]                                                   | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates resource limits of pods that are allowed to run  [Conformance]                                                     | 1.9.0   | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that NodeSelector is respected if matching  [Conformance]                                                          | 1.9.0   | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that NodeSelector is respected if not matching  [Conformance]                                                      | 1.9.0   | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that there exists conflict between pods with same hostPort and protocol but one using 0.0.0.0 hostIP [Conformance] | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that there is no conflict between pods with same hostPort but different hostIP and protocol [Conformance]          | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] PreemptionExecutionPath runs ReplicaSets to verify preemption running path [Conformance]                                     | 1.19.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] PriorityClass endpoints verify PriorityClass endpoints can be operated with different HTTP methods [Conformance]             | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] validates basic preemption works [Conformance]                                                                               | 1.19.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] validates lower priority pod preemption by critical pod [Conformance]                                                        | 1.19.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    |                                                                                                                                                                            |         | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ listCoreV1PodForAllNamespaces    |                                                                                                                                                                            |         | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ readCoreV1NamespacedPodStatus    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ readCoreV1NamespacedPodStatus    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ replaceCoreV1NamespacedPodStatus | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ replaceCoreV1NamespacedPodStatus | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ replaceCoreV1NamespacedPodStatus | [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]                                                                                      | 1.10.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+(21 rows)
+
+#+end_SRC

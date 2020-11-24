@@ -173,7 +173,7 @@ Find the file .go containing a test
 #+begin_src sql-mode
   select testname, file
     from untested_stable_endpoint
-   where file like '%PriorityClass%'
+   where file like '%OpenIDKeyset%'
          group by testname, file;
 #+end_src
 
