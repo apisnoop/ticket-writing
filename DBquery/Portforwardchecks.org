@@ -1,0 +1,186 @@
+#+Title: Port forward test
+
+
+*** 1. See what endpoints are hit by a spesific test
+                                                                                                   
+#+begin_src sql-mode
+  select distinct endpoint, conf_test_hit, useragent
+    from audit_event
+  --  from open_api
+   where test like '%sig-cli] Kubectl Port forwarding With a server listening on%'
+   order by endpoint;
+                                                                                                   
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                    endpoint                    | conf_test_hit |                                                                                                            useragent
+------------------------------------------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ connectCoreV1GetNamespacedPodPortforward       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ connectCoreV1GetNamespacedPodPortforward       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createAuthorizationV1SubjectAccessReview       | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createCoreV1NamespacedPod                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ createRbacAuthorizationV1NamespacedRoleBinding | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ deleteCoreV1Namespace                          | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ listCoreV1NamespacedServiceAccount             | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ listCoreV1Node                                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ readCoreV1NamespacedPod                        | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 should support forwarding over websockets
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on 0.0.0.0 that expects NO client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost should support forwarding over websockets
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends DATA, and disconnects
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects a client request should support a client that connects, sends NO DATA, and disconnects
+ readCoreV1NamespacedPodLog                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/c1f36fa -- [sig-cli] Kubectl Port forwarding With a server listening on localhost that expects NO client request should support a client that connects, sends DATA, and disconnects
+(74 rows)
+
+#+end_SRC
+
+
+#+begin_src sql-mode
+ --select * from describe_columns('public','endpoint_coverage');
+  refresh materalized view conformance.eligible_endpoint_coverage;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+#+end_SRC
+
+#+begin_src sql-mode 
+
+select distinct audit_event.endpoint, conf_tested, useragent
+    from audit_event
+    join endpoint_coverage using(endpoint)
+   where test is like '%Kubectl%'
+   order by audit_event.endpoint;     
+ #+end_src 
+
+ #+RESULTS:
+ #+begin_SRC example
+ #+end_SRC
+
+
+
+
+
+
+
+
+
+
+* Other tests:
+
+
+*** List endpoints from conformance file
+
+#+begin_src sql-mode
+select * from conformance.new_endpoint
+-- where tested = 'f';
+ where endpoint ilike '%Apps%' limit 70;
+#+end_src
+
+
+
+*** Are endpoints hit by a test and Conformance tested
+#+begin_src sql-mode
+  select distinct endpoint, conf_test_hit, useragent
+    from open_api
+         Left join audit_event using(endpoint)
+   where endpoint like '%Apps%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%'
+       and endpoint not like '%watch%'
+   --  and category = 'core'
+   group by endpoint, conf_test_hit, useragent;
+
+
+#+end_src
+
+
+
+
+
+
+
+
+
+
+
+*** Temp: check for Pod Test PR
+
+#+begin_src sql-mode
+  select distinct endpoint
+    from audit_event
+   where test like '%[k8s.io] Pods should run through the lifecycle of Pods and PodStatus%'
+    --   and endpoint like '%Pod%'                                                                  
+   order by endpoint;                                                                              
+
+#+end_src
+
+
+#+begin_src sql-mode
+    select distinct endpoint, test, test.release, audit_event. source
+      from audit_event
+           left join conformance.test test on (audit_event.test = test.codename)
+     where endpoint = any('{"listCoreV1PodForAllNamespaces","replaceCoreV1NamespacedPodStatus","readCoreV1NamespacedPodStatus"}');
+  ;
+#+end_src
+
