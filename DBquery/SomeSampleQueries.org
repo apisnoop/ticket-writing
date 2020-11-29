@@ -1,0 +1,245 @@
+
+#+Title: SnoopDB in Emacs
+
+* On Packet:
+  SnoopDB have been added to the Humacs toolbox and do not requier special setup.
+
+* Some Sample Queries:
+**  Describing a field with \d+
+
+ #+BEGIN_SRC sql-mode
+\d+ endpoint_coverage
+ #+END_SRC
+
+
+
+** Finding a test for an endpoint:
+ #+begin_src sql-mode
+   select endpoint,
+          unnest(tests) as test
+     from endpoint_coverage
+    where endpoint like '%watch%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%'
+     -- and release = '1.19.0'
+     group by endpoint, test, level, category;
+#+end_src
+
+
+
+
+
+** Finding deprecated endpoints (Not working)
+
+
+ #+begin_src sql-mode
+ select endpoint,
+         unnest(tests) as test
+    from endpoint_coverage
+     join open_api oa using(endpoint)
+where oa.release = '1.20.0'
+-- and oa.level = 'stable'
+and oa.endpoint  like '%watch%'
+and oa.deprecated is false
+    group by endpoint, test, level, category;
+
+#+end_src
+
+
+
+** Finding deprecated endpoints
+   
+#+BEGIN_SRC sql-mode
+select distinct endpoint, deprecated
+from open_api
+where release = '1.20.0'
+and level = 'stable'
+and endpoint  like 'watch%';
+
+
+#+END_SRC
+
+
+
+
+** Give a description of avalible tables
+#+BEGIN_SRC sql-mode
+\dt+
+#+END_SRC
+
+#+RESULTS:
+#+begin_SRC example
+                                              List of relations
+ Schema |    Name     | Type  |  Owner   |  Size   |                       Description
+--------+-------------+-------+----------+---------+----------------------------------------------------------
+ public | audit_event | table | apisnoop | 867 MB  | every event from an e2e test run, or multiple test runs.
+ public | open_api    | table | apisnoop | 5080 kB | endpoint details from openAPI spec
+(2 rows)
+
+#+end_SRC
+
+
+** List endpoints from conformance file
+
+#+begin_src sql-mode
+select * from conformance.new_endpoint
+-- where tested = 'f';
+ where endpoint ilike '%PriorityClass%' limit 50;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                 endpoint                  | release | tested
+-------------------------------------------+---------+--------
+ listSchedulingV1PriorityClass             | 1.14.0  | f
+ deleteSchedulingV1CollectionPriorityClass | 1.14.0  | f
+ readSchedulingV1PriorityClass             | 1.14.0  | f
+ replaceSchedulingV1PriorityClass          | 1.14.0  | f
+ patchSchedulingV1PriorityClass            | 1.14.0  | f
+ deleteSchedulingV1PriorityClass           | 1.14.0  | t
+ createSchedulingV1PriorityClass           | 1.14.0  | t
+(7 rows)
+
+#+end_SRC
+
+
+
+** Describing
+#+begin_src sql-mode
+select * from describe_relations();
+
+
+#+end_src
+
+
+
+
+#+begin_src sql-mode
+select * from describe_relation('conformance','progress');
+
+
+#+end_src
+
+
+
+#+begin_src sql-mode
+select * from describe_columns('public','endpoint_coverage');
+
+
+#+end_src
+
+
+
+
+#+begin_src sql-mode
+select * from describe_column('public','endpoint_coverage','tested');
+
+
+#+end_src
+
+
+
+#+begin_src sql-mode
+select * from describe_relation('conformance','eligible_endpoint');
+
+
+#+end_src
+
+
+
+
+* Running queries
+
+#+begin_src sql-mode
+  select endpoint, useragent
+    from open_api
+     left join audit_event using(endpoint)
+   where endpoint like '%PriorityClass%'
+  group by endpoint, useragent;
+
+#+end_src
+
+
+
+
+* What can be called in the "Audit event"
+#+begin_src sql-mode
+select * from describe_columns('public', 'audit_event');
+
+#+end_src
+
+
+Find the file .go containing a test
+#+begin_src sql-mode
+  select testname, file
+    from untested_stable_endpoint
+   where file like '%OpenIDKeyset%'
+         group by testname, file;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ERROR:  relation "untested_stable_endpoint" does not exist
+LINE 2:   from untested_stable_endpoint
+               ^
+#+end_SRC
+
+
+* Link test to endpoints it hit
+#+begin_src sql-mode
+  select codename, endpoint
+    from public.test
+   left join audit_event on(test = codename)
+   where file like '%PriorityClass%'
+  group by codename, endpoint;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ERROR:  relation "public.test" does not exist
+LINE 2:   from public.test
+               ^
+#+end_SRC
+
+
+
+
+
+* Are endpoints hit by a test?
+#+begin_src sql-mode
+  select endpoint, conf_test_hit, useragent
+    from open_api
+         Left join audit_event using(endpoint)
+   where endpoint like '%PriorityClass%'
+     and category = 'core'
+   group by endpoint, conf_test_hit, useragent;
+
+
+
+#+end_src
+
+
+
+
+* List of all user agents
+
+#+begin_src sql-mode
+select useragent from audit_event where test is null group by useragent;
+
+
+#+end_src
+
+
+
+
+
+* See what endpoints are hit by a spesific test
+
+#+begin_src sql-mode
+select audit_id, endpoint
+  from audit_event
+ where test like '%server version should find the server version%'
+ order by endpoint;
+
+#+end_src
+

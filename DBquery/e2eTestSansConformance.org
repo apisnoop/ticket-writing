@@ -1,0 +1,702 @@
+#+Title: Finding e2e test to promote
+Date: 30 Nov 2020
+
+
+*  Describing a field with \d+
+
+Endpoint Coverage
+ #+BEGIN_SRC sql-mode
+\d+ endpoint_coverage
+ #+END_SRC
+
+ #+RESULTS:
+ #+begin_SRC example
+                                                          View "public.endpoint_coverage"
+    Column    |  Type   | Collation | Nullable | Default | Storage  |                                 Description
+ -------------+---------+-----------+----------+---------+----------+-----------------------------------------------------------------------------
+  release     | text    |           |          |         | extended | the open api release, date of endpoint details
+  endpoint    | text    |           |          |         | extended | a kubernetes endpoint, the operation_id in the spec
+  level       | text    |           |          |         | extended | alpha, beta, or stable
+  category    | text    |           |          |         | extended | endpoint category, roughly its group, taken from the first tag in the spec.
+  path        | text    |           |          |         | extended | the http path of the endpoint
+  description | text    |           |          |         | extended |
+  kind        | text    |           |          |         | extended | k8s kind  for endpoint
+  version     | text    |           |          |         | extended | k8s version for endpoint
+  group       | text    |           |          |         | extended | k8s group for endpoint
+  action      | text    |           |          |         | extended | endpoint action, roughly related to an http method
+  tested      | boolean |           |          |         | plain    | was endpoint hit at least once by a test useragent
+  conf_tested | boolean |           |          |         | plain    | was endpoint hit at least once by a conformance test useragent
+  tests       | text[]  |           |          |         | extended | array of codenames of all tests that hit this endpoint
+ View definition:
+  SELECT open_api.release,
+     open_api.endpoint,
+     open_api.level,
+     open_api.category,
+     open_api.path,
+     open_api.description,
+     open_api.k8s_kind AS kind,
+     open_api.k8s_version AS version,
+     open_api.k8s_group AS "group",
+     open_api.k8s_action AS action,
+     count(audit_event.test_hit) FILTER (WHERE audit_event.test_hit IS TRUE) > 0 AS tested,
+     count(audit_event.conf_test_hit) FILTER (WHERE audit_event.conf_test_hit IS TRUE) > 0 AS conf_tested,
+     array_agg(DISTINCT audit_event.test) AS tests
+    FROM open_api
+      LEFT JOIN audit_event USING (endpoint, release)
+   WHERE open_api.deprecated IS FALSE
+   GROUP BY open_api.release, open_api.endpoint, open_api.level, open_api.category, open_api.path, open_api.description, open_api.k8s_kind, open_api.k8s_version, open_api.k8s_group, open_api.k8s_action
+   ORDER BY open_api.level DESC, open_api.endpoint;
+
+ #+end_SRC
+
+Open API
+ #+BEGIN_SRC sql-mode
+\d+ open_api
+ #+END_SRC
+
+ #+RESULTS:
+ #+begin_SRC example
+                                                                                Table "public.open_api"
+     Column    |            Type             | Collation | Nullable | Default | Storage  | Stats target |                                 Description
+ --------------+-----------------------------+-----------+----------+---------+----------+--------------+-----------------------------------------------------------------------------
+  release      | text                        |           | not null |         | extended |              | kubernetes release of this spec
+  release_date | timestamp without time zone |           |          |         | plain    |              | canonical release date for k8s release
+  endpoint     | text                        |           | not null |         | extended |              | kubernetes endpoint, the operation_id in the spec
+  level        | text                        |           |          |         | extended |              | alpha, beta, or stable
+  category     | text                        |           |          |         | extended |              | endpoint category, roughly its group, taken from the first tag in the spec.
+  path         | text                        |           |          |         | extended |              | the http path of the endpoint
+  k8s_group    | text                        |           |          |         | extended |              | k8s group for endpoint
+  k8s_version  | text                        |           |          |         | extended |              | k8s version for endpoint
+  k8s_kind     | text                        |           |          |         | extended |              | k8s kind  for endpoint
+  k8s_action   | text                        |           |          |         | extended |              | endpoint action, roughly related to an http method
+  deprecated   | boolean                     |           |          |         | plain    |              | is endpoint marked as deprecated?
+  description  | text                        |           |          |         | extended |              | description of endpoint
+  spec         | text                        |           |          |         | extended |              | the source for this open api spec, taken from github.
+ Indexes:
+     "open_api_pkey" PRIMARY KEY, btree (release, endpoint)
+ Access method: heap
+
+ #+end_SRC
+
+
+
+
+
+
+#+begin_src sql-mode
+   select distinct endpoint,
+        unnest(tests) as test
+     from endpoint_coverage
+    where tested = 'true'
+   and conf_tested = 'false'
+   and level like '%stable%'
+     group by endpoint limit 100;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ERROR:  syntax error at or near "from"
+LINE 3:      from endpoint_coverage
+             ^
+#+end_SRC
+
+
+
+
+*** Finding a test for an endpoint:
+#+begin_src sql-mode
+   select distinct endpoint,
+          unnest(tests) as test
+     from endpoint_coverage
+    where endpoint like '%Apps%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%'
+       and endpoint not like '%watch%'
+     -- and release = '1.19.0'
+     group by endpoint, test, level, category;
+#+end_src
+
+
+
+
+
+*** Finding deprecated endpoints
+
+#+BEGIN_SRC sql-mode
+select distinct endpoint, deprecated
+from open_api
+where release = '1.20.0'
+--and level = 'stable'
+and endpoint  like 'Apps%';
+
+
+#+END_SRC
+
+
+
+
+*** List endpoints from conformance file
+
+#+begin_src sql-mode
+select * from conformance.new_endpoint
+-- where tested = 'f';
+ where endpoint ilike '%Apps%' limit 70;
+#+end_src
+
+
+
+
+
+*** Are endpoints hit by a test and Conformance tested
+#+begin_src sql-mode
+  select distinct endpoint, conf_test_hit, useragent
+    from open_api
+         Left join audit_event using(endpoint)
+   where endpoint like '%Apps%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%'
+       and endpoint not like '%watch%'
+   --  and category = 'core'
+   group by endpoint, conf_test_hit, useragent;
+
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                      endpoint                      | conf_test_hit |                                                                                                                     useragent
+----------------------------------------------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ createAppsV1NamespacedControllerRevision           | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:daemon-set-controller
+ createAppsV1NamespacedControllerRevision           | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:statefulset-controller
+ createAppsV1NamespacedDaemonSet                    | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ createAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]
+ createAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should rollback without unnecessary restarts [Conformance]
+ createAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop complex daemon [Conformance]
+ createAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop simple daemon [Conformance]
+ createAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+ createAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment reaping should cascade to its replica sets and pods
+ createAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment iterative rollouts should eventually progress
+ createAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should not disrupt a cloud load-balancer's connectivity during rollout
+ createAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment test Deployment ReplicaSet orphaning and adoption regarding controllerRef
+ createAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-network] Services should preserve source pod IP for traffic thru service cluster IP [LinuxOnly]
+ createAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] Mounted volume expand Should verify mounted devices can be resized
+ createAppsV1NamespacedDeployment                   | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ createAppsV1NamespacedDeployment                   | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing mutating webhooks should work [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing validating webhooks should work [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a mutating webhook should work [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a validating webhook should work [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny attaching pod [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny custom resource creation, update and deletion [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny pod and configmap creation [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should deny crd creation [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should honor timeout [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should include webhook resources in discovery documents [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate configmap [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with different stored version [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with pruning [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate pod and apply defaults after mutation [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should not be able to mutate or prevent deletion of webhook configuration objects [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should unconditionally reject operations on fail closed webhook [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert a non homogeneous list of CRs [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert from CR v1 to CR v2 [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should delete RS created by deployment when not orphaning [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should orphan RS created by deployment when deleteOptions.PropagationPolicy is Orphan [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should delete old replica sets [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support proportional scaling [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RecreateDeployment should delete old pods and create new ones [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RollingUpdateDeployment should delete old pods and create new ones [Conformance]
+ createAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ createAppsV1NamespacedReplicaSet                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] DisruptionController evictions: enough pods, replicaSet, percentage => should allow an eviction
+ createAppsV1NamespacedReplicaSet                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] DisruptionController evictions: maxUnavailable allow single eviction, percentage => should allow an eviction
+ createAppsV1NamespacedReplicaSet                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] DisruptionController should block an eviction until the PDB is updated to allow it
+ createAppsV1NamespacedReplicaSet                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] ReplicaSet should serve a basic image on each replica with a private image
+ createAppsV1NamespacedReplicaSet                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] ReplicaSet should surface a failure condition on a common issue like exceeded quota
+ createAppsV1NamespacedReplicaSet                   | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] ResourceQuota should create a ResourceQuota and capture the life of a replica set. [Conformance]
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should delete old replica sets [Conformance]
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RollingUpdateDeployment should delete old pods and create new ones [Conformance]
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] ReplicaSet should adopt matching pods on creation and release no longer matching pods [Conformance]
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] ReplicaSet should serve a basic image on each replica with a public image  [Conformance]
+ createAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-scheduling] SchedulerPreemption [Serial] PreemptionExecutionPath runs ReplicaSets to verify preemption running path [Conformance]
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should adopt matching orphans and release non-matching pods
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should implement legacy replacement when the update strategy is OnDelete
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should not deadlock when a pod's predecessor fails
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications with PVCs
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should provide basic identity
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI attach test using mock driver should not require VolumeAttach for drivers without attachment
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI attach test using mock driver should preserve attachment policy when no CSIDriver present
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI attach test using mock driver should require VolumeAttach for drivers with attachment
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI FSGroupPolicy [LinuxOnly] should modify fsGroup if fsGroupPolicy=default
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI FSGroupPolicy [LinuxOnly] should modify fsGroup if fsGroupPolicy=File
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI FSGroupPolicy [LinuxOnly] should not modify fsGroup if fsGroupPolicy=None
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI online volume expansion should expand volume without restarting pod if attach=off, nodeExpansion=on
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI online volume expansion should expand volume without restarting pod if attach=on, nodeExpansion=on
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should expand volume by restarting pod if attach=off, nodeExpansion=on
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should expand volume by restarting pod if attach=on, nodeExpansion=on
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should expand volume without restarting pod if nodeExpansion=off
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should not expand volume if resizingOnDriver=off, resizingOnSC=on
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver contain ephemeral=true when using inline volume
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should be passed when podInfoOnMount=true
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should not be passed when CSIDriver does not exist
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should not be passed when podInfoOnMount=false
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should not be passed when podInfoOnMount=nil
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity exhausted, immediate binding
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity exhausted, late binding, no topology
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity exhausted, late binding, with topology
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity unlimited
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should create read-only inline ephemeral volume
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should create read/write inline ephemeral volume
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should support multiple inline ephemeral volumes
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should support two pods which share the same volume
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)(allowExpansion)] volume-expand should resize volume when PVC is edited while pod is using it
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)(allowExpansion)] volume-expand Verify if offline PVC expansion works
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] provisioning should provision storage with pvc data source
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] volume-expand should not allow expansion of pvcs without AllowVolumeExpansion property
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] volumeMode should not mount / map unused volumes in a pod [LinuxOnly]
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] volumes should store data
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)(allowExpansion)] volume-expand should resize volume when PVC is edited while pod is using it
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)(allowExpansion)] volume-expand Verify if offline PVC expansion works
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] provisioning should provision storage with pvc data source
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should be able to unmount after the subpath directory is deleted [LinuxOnly]
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support existing directories when readOnly specified in the volumeSource
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support existing directory
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support existing single file [LinuxOnly]
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support file as subpath [LinuxOnly]
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support non-existent path
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support readOnly directory specified in the volumeMount
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support readOnly file specified in the volumeMount [LinuxOnly]
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] volume-expand should not allow expansion of pvcs without AllowVolumeExpansion property
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] volumes should store data
+ createAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (filesystem volmode)] volumeMode should not mount / map unused volumes in a pod [LinuxOnly]
+ createAppsV1NamespacedStatefulSet                  | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ createAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Burst scaling should run to completion even with unhealthy pods [Slow] [Conformance]
+ createAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Scaling should happen in predictable order and halt if any stateful pod is unhealthy [Slow] [Conformance]
+ createAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ createAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform canary updates and phased rolling updates of template modifications [Conformance]
+ createAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications [Conformance]
+ createAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Should recreate evicted statefulset [Conformance]
+ deleteAppsV1CollectionNamespacedControllerRevision | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ deleteAppsV1CollectionNamespacedDaemonSet          | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ deleteAppsV1CollectionNamespacedDeployment         | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ deleteAppsV1CollectionNamespacedDeployment         | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ deleteAppsV1CollectionNamespacedReplicaSet         | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ deleteAppsV1CollectionNamespacedStatefulSet        | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ deleteAppsV1NamespacedControllerRevision           | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ deleteAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]
+ deleteAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should rollback without unnecessary restarts [Conformance]
+ deleteAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop complex daemon [Conformance]
+ deleteAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop simple daemon [Conformance]
+ deleteAppsV1NamespacedDaemonSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+ deleteAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment reaping should cascade to its replica sets and pods
+ deleteAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment test Deployment ReplicaSet orphaning and adoption regarding controllerRef
+ deleteAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-network] Services should preserve source pod IP for traffic thru service cluster IP [LinuxOnly]
+ deleteAppsV1NamespacedDeployment                   | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] Mounted volume expand Should verify mounted devices can be resized
+ deleteAppsV1NamespacedDeployment                   | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing mutating webhooks should work [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing validating webhooks should work [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a mutating webhook should work [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a validating webhook should work [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny attaching pod [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny custom resource creation, update and deletion [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny pod and configmap creation [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should deny crd creation [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should honor timeout [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should include webhook resources in discovery documents [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate configmap [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with different stored version [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with pruning [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate pod and apply defaults after mutation [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should not be able to mutate or prevent deletion of webhook configuration objects [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should unconditionally reject operations on fail closed webhook [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert a non homogeneous list of CRs [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert from CR v1 to CR v2 [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should delete RS created by deployment when not orphaning [Conformance]
+ deleteAppsV1NamespacedDeployment                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should orphan RS created by deployment when deleteOptions.PropagationPolicy is Orphan [Conformance]
+ deleteAppsV1NamespacedReplicaSet                   | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ deleteAppsV1NamespacedReplicaSet                   | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ deleteAppsV1NamespacedReplicaSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] ResourceQuota should create a ResourceQuota and capture the life of a replica set. [Conformance]
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should adopt matching orphans and release non-matching pods
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should implement legacy replacement when the update strategy is OnDelete
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should not deadlock when a pod's predecessor fails
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications with PVCs
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should provide basic identity
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI attach test using mock driver should not require VolumeAttach for drivers without attachment
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI attach test using mock driver should preserve attachment policy when no CSIDriver present
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI attach test using mock driver should require VolumeAttach for drivers with attachment
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI FSGroupPolicy [LinuxOnly] should modify fsGroup if fsGroupPolicy=default
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI FSGroupPolicy [LinuxOnly] should modify fsGroup if fsGroupPolicy=File
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI FSGroupPolicy [LinuxOnly] should not modify fsGroup if fsGroupPolicy=None
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI online volume expansion should expand volume without restarting pod if attach=off, nodeExpansion=on
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI online volume expansion should expand volume without restarting pod if attach=on, nodeExpansion=on
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should expand volume by restarting pod if attach=off, nodeExpansion=on
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should expand volume by restarting pod if attach=on, nodeExpansion=on
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should expand volume without restarting pod if nodeExpansion=off
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI Volume expansion should not expand volume if resizingOnDriver=off, resizingOnSC=on
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver contain ephemeral=true when using inline volume
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should be passed when podInfoOnMount=true
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should not be passed when CSIDriver does not exist
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should not be passed when podInfoOnMount=false
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume CSI workload information using mock driver should not be passed when podInfoOnMount=nil
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity exhausted, immediate binding
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity exhausted, late binding, no topology
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity exhausted, late binding, with topology
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI mock volume storage capacity unlimited
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should create read-only inline ephemeral volume
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should create read/write inline ephemeral volume
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should support multiple inline ephemeral volumes
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: CSI Ephemeral-volume (default fs)] ephemeral should support two pods which share the same volume
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)(allowExpansion)] volume-expand should resize volume when PVC is edited while pod is using it
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)(allowExpansion)] volume-expand Verify if offline PVC expansion works
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] provisioning should provision storage with pvc data source
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] volume-expand should not allow expansion of pvcs without AllowVolumeExpansion property
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] volumeMode should not mount / map unused volumes in a pod [LinuxOnly]
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (block volmode)] volumes should store data
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)(allowExpansion)] volume-expand should resize volume when PVC is edited while pod is using it
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)(allowExpansion)] volume-expand Verify if offline PVC expansion works
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] provisioning should provision storage with pvc data source
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should be able to unmount after the subpath directory is deleted [LinuxOnly]
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support existing directories when readOnly specified in the volumeSource
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support existing directory
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support existing single file [LinuxOnly]
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support file as subpath [LinuxOnly]
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support non-existent path
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support readOnly directory specified in the volumeMount
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] subPath should support readOnly file specified in the volumeMount [LinuxOnly]
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] volume-expand should not allow expansion of pvcs without AllowVolumeExpansion property
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (default fs)] volumes should store data
+ deleteAppsV1NamespacedStatefulSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] CSI Volumes [Driver: csi-hostpath] [Testpattern: Dynamic PV (filesystem volmode)] volumeMode should not mount / map unused volumes in a pod [LinuxOnly]
+ deleteAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Burst scaling should run to completion even with unhealthy pods [Slow] [Conformance]
+ deleteAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Scaling should happen in predictable order and halt if any stateful pod is unhealthy [Slow] [Conformance]
+ deleteAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ deleteAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform canary updates and phased rolling updates of template modifications [Conformance]
+ deleteAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications [Conformance]
+ deleteAppsV1NamespacedStatefulSet                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Should recreate evicted statefulset [Conformance]
+ getAppsAPIGroup                                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+ getAppsV1APIResources                              | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-network] Services should create endpoints for unready pods
+ getAppsV1APIResources                              | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/controller-discovery
+ getAppsV1APIResources                              | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ getAppsV1APIResources                              | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ getAppsV1APIResources                              | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:resourcequota-controller
+ getAppsV1APIResources                              | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ getAppsV1APIResources                              | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ getAppsV1APIResources                              | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ listAppsV1ControllerRevisionForAllNamespaces       | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/shared-informers
+ listAppsV1DaemonSetForAllNamespaces                | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/shared-informers
+ listAppsV1DeploymentForAllNamespaces               | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/shared-informers
+ listAppsV1DeploymentForAllNamespaces               | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ listAppsV1NamespacedControllerRevision             | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedControllerRevision             | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+ listAppsV1NamespacedDaemonSet                      | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ listAppsV1NamespacedDaemonSet                      | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedDaemonSet                      | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ listAppsV1NamespacedDaemonSet                      | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ listAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]
+ listAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should rollback without unnecessary restarts [Conformance]
+ listAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop complex daemon [Conformance]
+ listAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop simple daemon [Conformance]
+ listAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+ listAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment reaping should cascade to its replica sets and pods
+ listAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment iterative rollouts should eventually progress
+ listAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should not disrupt a cloud load-balancer's connectivity during rollout
+ listAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment test Deployment ReplicaSet orphaning and adoption regarding controllerRef
+ listAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-autoscaling] DNS horizontal autoscaling [DisabledForLargeClusters] kube-dns-autoscaler should scale kube-dns pods in both nonfaulty and faulty scenarios
+ listAppsV1NamespacedDeployment                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedDeployment                     | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ listAppsV1NamespacedDeployment                     | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should delete RS created by deployment when not orphaning [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should orphan RS created by deployment when deleteOptions.PropagationPolicy is Orphan [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should delete old replica sets [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support proportional scaling [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RecreateDeployment should delete old pods and create new ones [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RollingUpdateDeployment should delete old pods and create new ones [Conformance]
+ listAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ listAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ listAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment reaping should cascade to its replica sets and pods
+ listAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment iterative rollouts should eventually progress
+ listAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should not disrupt a cloud load-balancer's connectivity during rollout
+ listAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment test Deployment ReplicaSet orphaning and adoption regarding controllerRef
+ listAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] Mounted volume expand Should verify mounted devices can be resized
+ listAppsV1NamespacedReplicaSet                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ listAppsV1NamespacedReplicaSet                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedReplicaSet                     | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ listAppsV1NamespacedReplicaSet                     | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing mutating webhooks should work [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing validating webhooks should work [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a mutating webhook should work [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a validating webhook should work [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny attaching pod [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny custom resource creation, update and deletion [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny pod and configmap creation [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should deny crd creation [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should honor timeout [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should include webhook resources in discovery documents [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate configmap [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with different stored version [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with pruning [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate pod and apply defaults after mutation [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should not be able to mutate or prevent deletion of webhook configuration objects [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should unconditionally reject operations on fail closed webhook [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert a non homogeneous list of CRs [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert from CR v1 to CR v2 [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should delete RS created by deployment when not orphaning [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should orphan RS created by deployment when deleteOptions.PropagationPolicy is Orphan [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should delete old replica sets [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support proportional scaling [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RecreateDeployment should delete old pods and create new ones [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RollingUpdateDeployment should delete old pods and create new ones [Conformance]
+ listAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ listAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should adopt matching orphans and release non-matching pods
+ listAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should implement legacy replacement when the update strategy is OnDelete
+ listAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should not deadlock when a pod's predecessor fails
+ listAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications with PVCs
+ listAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should provide basic identity
+ listAppsV1NamespacedStatefulSet                    | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedStatefulSet                    | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ listAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Burst scaling should run to completion even with unhealthy pods [Slow] [Conformance]
+ listAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Scaling should happen in predictable order and halt if any stateful pod is unhealthy [Slow] [Conformance]
+ listAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ listAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform canary updates and phased rolling updates of template modifications [Conformance]
+ listAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications [Conformance]
+ listAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Should recreate evicted statefulset [Conformance]
+ listAppsV1ReplicaSetForAllNamespaces               | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/shared-informers
+ listAppsV1ReplicaSetForAllNamespaces               | f             | kube-scheduler/v1.20.0 (linux/amd64) kubernetes/7566c9b/scheduler
+ listAppsV1StatefulSetForAllNamespaces              | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/shared-informers
+ listAppsV1StatefulSetForAllNamespaces              | f             | kube-scheduler/v1.20.0 (linux/amd64) kubernetes/7566c9b/scheduler
+ patchAppsV1NamespacedControllerRevision            |               |
+ patchAppsV1NamespacedDaemonSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop complex daemon [Conformance]
+ patchAppsV1NamespacedDaemonSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+ patchAppsV1NamespacedDaemonSetStatus               |               |
+ patchAppsV1NamespacedDeployment                    | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ patchAppsV1NamespacedDeployment                    | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ patchAppsV1NamespacedDeployment                    | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ patchAppsV1NamespacedDeployment                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ patchAppsV1NamespacedDeploymentScale               | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ patchAppsV1NamespacedDeploymentStatus              | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ patchAppsV1NamespacedReplicaSet                    | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ patchAppsV1NamespacedReplicaSet                    | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ patchAppsV1NamespacedReplicaSetScale               |               |
+ patchAppsV1NamespacedReplicaSetStatus              |               |
+ patchAppsV1NamespacedStatefulSet                   |               |
+ patchAppsV1NamespacedStatefulSetScale              |               |
+ patchAppsV1NamespacedStatefulSetStatus             |               |
+ readAppsV1NamespacedControllerRevision             | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ readAppsV1NamespacedDaemonSet                      | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:daemon-set-controller
+ readAppsV1NamespacedDaemonSet                      | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ readAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]
+ readAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should rollback without unnecessary restarts [Conformance]
+ readAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop complex daemon [Conformance]
+ readAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should run and stop simple daemon [Conformance]
+ readAppsV1NamespacedDaemonSet                      | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should update pod when spec was updated and update strategy is RollingUpdate [Conformance]
+ readAppsV1NamespacedDaemonSetStatus                |               |
+ readAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment reaping should cascade to its replica sets and pods
+ readAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment iterative rollouts should eventually progress
+ readAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should not disrupt a cloud load-balancer's connectivity during rollout
+ readAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment test Deployment ReplicaSet orphaning and adoption regarding controllerRef
+ readAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-network] Services should preserve source pod IP for traffic thru service cluster IP [LinuxOnly]
+ readAppsV1NamespacedDeployment                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-storage] Mounted volume expand Should verify mounted devices can be resized
+ readAppsV1NamespacedDeployment                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ readAppsV1NamespacedDeployment                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ readAppsV1NamespacedDeployment                     | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ readAppsV1NamespacedDeployment                     | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ readAppsV1NamespacedDeployment                     | f             | pod_nanny/1.8.11
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing mutating webhooks should work [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] listing validating webhooks should work [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a mutating webhook should work [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] patching/updating a validating webhook should work [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny attaching pod [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny custom resource creation, update and deletion [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should be able to deny pod and configmap creation [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should deny crd creation [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should honor timeout [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should include webhook resources in discovery documents [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate configmap [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with different stored version [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate custom resource with pruning [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should mutate pod and apply defaults after mutation [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should not be able to mutate or prevent deletion of webhook configuration objects [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] AdmissionWebhook [Privileged:ClusterAdmin] should unconditionally reject operations on fail closed webhook [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert a non homogeneous list of CRs [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] CustomResourceConversionWebhook [Privileged:ClusterAdmin] should be able to convert from CR v1 to CR v2 [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should delete old replica sets [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support proportional scaling [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RecreateDeployment should delete old pods and create new ones [Conformance]
+ readAppsV1NamespacedDeployment                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RollingUpdateDeployment should delete old pods and create new ones [Conformance]
+ readAppsV1NamespacedDeploymentScale                | f             | cluster-proportional-autoscaler/v0.0.0 (linux/amd64) kubernetes/$Format
+ readAppsV1NamespacedDeploymentStatus               | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ readAppsV1NamespacedReplicaSet                     | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] ReplicaSet should surface a failure condition on a common issue like exceeded quota
+ readAppsV1NamespacedReplicaSet                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ readAppsV1NamespacedReplicaSet                     | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:replicaset-controller
+ readAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-api-machinery] Garbage collector should orphan RS created by deployment when deleteOptions.PropagationPolicy is Orphan [Conformance]
+ readAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support proportional scaling [Conformance]
+ readAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ readAppsV1NamespacedReplicaSet                     | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-scheduling] SchedulerPreemption [Serial] PreemptionExecutionPath runs ReplicaSets to verify preemption running path [Conformance]
+ readAppsV1NamespacedReplicaSetScale                | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:disruption-controller
+ readAppsV1NamespacedReplicaSetStatus               |               |
+ readAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should adopt matching orphans and release non-matching pods
+ readAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should implement legacy replacement when the update strategy is OnDelete
+ readAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should not deadlock when a pod's predecessor fails
+ readAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications with PVCs
+ readAppsV1NamespacedStatefulSet                    | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should provide basic identity
+ readAppsV1NamespacedStatefulSet                    | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:generic-garbage-collector
+ readAppsV1NamespacedStatefulSet                    | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:statefulset-controller
+ readAppsV1NamespacedStatefulSet                    | f             | kubectl/v1.13.2 (linux/amd64) kubernetes/cff46ab
+ readAppsV1NamespacedStatefulSet                    | f             | kubectl/v1.20.0 (linux/amd64) kubernetes/7566c9b
+ readAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Burst scaling should run to completion even with unhealthy pods [Slow] [Conformance]
+ readAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Scaling should happen in predictable order and halt if any stateful pod is unhealthy [Slow] [Conformance]
+ readAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ readAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform canary updates and phased rolling updates of template modifications [Conformance]
+ readAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications [Conformance]
+ readAppsV1NamespacedStatefulSet                    | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Should recreate evicted statefulset [Conformance]
+ readAppsV1NamespacedStatefulSetScale               | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ readAppsV1NamespacedStatefulSetStatus              |               |
+ replaceAppsV1NamespacedControllerRevision          | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:daemon-set-controller
+ replaceAppsV1NamespacedControllerRevision          | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:statefulset-controller
+ replaceAppsV1NamespacedDaemonSet                   | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Daemon set [Serial] should rollback without unnecessary restarts [Conformance]
+ replaceAppsV1NamespacedDaemonSetStatus             | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:daemon-set-controller
+ replaceAppsV1NamespacedDeployment                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment iterative rollouts should eventually progress
+ replaceAppsV1NamespacedDeployment                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should not disrupt a cloud load-balancer's connectivity during rollout
+ replaceAppsV1NamespacedDeployment                  | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ replaceAppsV1NamespacedDeployment                  | f             | pod_nanny/1.8.11
+ replaceAppsV1NamespacedDeployment                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support proportional scaling [Conformance]
+ replaceAppsV1NamespacedDeployment                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment deployment should support rollover [Conformance]
+ replaceAppsV1NamespacedDeployment                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment RecreateDeployment should delete old pods and create new ones [Conformance]
+ replaceAppsV1NamespacedDeployment                  | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ replaceAppsV1NamespacedDeploymentScale             | f             | cluster-proportional-autoscaler/v0.0.0 (linux/amd64) kubernetes/$Format
+ replaceAppsV1NamespacedDeploymentStatus            | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ replaceAppsV1NamespacedReplicaSet                  | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] ReplicaSet should surface a failure condition on a common issue like exceeded quota
+ replaceAppsV1NamespacedReplicaSet                  | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:deployment-controller
+ replaceAppsV1NamespacedReplicaSetScale             |               |
+ replaceAppsV1NamespacedReplicaSetStatus            | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:replicaset-controller
+ replaceAppsV1NamespacedStatefulSet                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should adopt matching orphans and release non-matching pods
+ replaceAppsV1NamespacedStatefulSet                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should implement legacy replacement when the update strategy is OnDelete
+ replaceAppsV1NamespacedStatefulSet                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should not deadlock when a pod's predecessor fails
+ replaceAppsV1NamespacedStatefulSet                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications with PVCs
+ replaceAppsV1NamespacedStatefulSet                 | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should provide basic identity
+ replaceAppsV1NamespacedStatefulSet                 | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Burst scaling should run to completion even with unhealthy pods [Slow] [Conformance]
+ replaceAppsV1NamespacedStatefulSet                 | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Scaling should happen in predictable order and halt if any stateful pod is unhealthy [Slow] [Conformance]
+ replaceAppsV1NamespacedStatefulSet                 | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ replaceAppsV1NamespacedStatefulSet                 | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform canary updates and phased rolling updates of template modifications [Conformance]
+ replaceAppsV1NamespacedStatefulSet                 | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should perform rolling updates and roll backs of template modifications [Conformance]
+ replaceAppsV1NamespacedStatefulSet                 | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] Should recreate evicted statefulset [Conformance]
+ replaceAppsV1NamespacedStatefulSetScale            | t             | e2e.test/v1.20.0 (linux/amd64) kubernetes/7566c9b -- [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
+ replaceAppsV1NamespacedStatefulSetStatus           | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/7566c9b/system:serviceaccount:kube-system:statefulset-controller
+(428 rows)
+
+#+end_SRC
+                                                                                            
+                                                                                                    
+                                                                                                   
+                                                                                                   
+*** See what endpoints are hit by a spesific test
+                                                                                                   
+#+begin_src sql-mode
+  select distinct endpoint                                                                         
+    from audit_event                                                                               
+   where test like '%[sig-apps] Deployment should run the lifecycle of a Deployment%'              
+       and endpoint like '%Apps%'                                                                  
+   order by endpoint;                                                                              
+                                                                                                   
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint
+--------------------------------------------
+ createAppsV1NamespacedDeployment
+ deleteAppsV1CollectionNamespacedDeployment
+ listAppsV1DeploymentForAllNamespaces
+ listAppsV1NamespacedDeployment
+ listAppsV1NamespacedReplicaSet
+ patchAppsV1NamespacedDeployment
+ patchAppsV1NamespacedDeploymentStatus
+ readAppsV1NamespacedDeploymentStatus
+ replaceAppsV1NamespacedDeployment
+(9 rows)
+
+#+end_SRC
+
+
+
+*** Temp: check for Pod Test PR
+
+#+begin_src sql-mode
+  select distinct endpoint
+    from audit_event
+   where test like '%[k8s.io] Pods should run through the lifecycle of Pods and PodStatus%'
+    --   and endpoint like '%Pod%'                                                                  
+   order by endpoint;                                                                              
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                    endpoint
+------------------------------------------------
+ createAuthorizationV1SubjectAccessReview
+ createCoreV1Namespace
+ createCoreV1NamespacedPod
+ createRbacAuthorizationV1NamespacedRoleBinding
+ deleteCoreV1CollectionNamespacedPod
+ deleteCoreV1Namespace
+ listCoreV1NamespacedPod
+ listCoreV1NamespacedServiceAccount
+ listCoreV1Node
+ listCoreV1PodForAllNamespaces
+ patchCoreV1NamespacedPod
+ readCoreV1NamespacedPod
+ readCoreV1NamespacedPodStatus
+ replaceCoreV1NamespacedPodStatus
+(14 rows)
+
+#+end_SRC
+
+#+begin_src sql-mode
+    select distinct endpoint, test, test.release, audit_event. source
+      from audit_event
+           left join conformance.test test on (audit_event.test = test.codename)
+     where endpoint = any('{"listCoreV1PodForAllNamespaces","replaceCoreV1NamespacedPodStatus","readCoreV1NamespacedPodStatus"}');
+  ;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+             endpoint             |                                                                                    test                                                                                    | release |                                                    source
+----------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+---------+---------------------------------------------------------------------------------------------------------------
+ listCoreV1PodForAllNamespaces    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ listCoreV1PodForAllNamespaces    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [k8s.io] [sig-node] NodeProblemDetector [DisabledForLargeClusters] should run without error                                                                                |         | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ listCoreV1PodForAllNamespaces    | [k8s.io] [sig-node] NoExecuteTaintManager Multiple Pods [Serial] evicts pods with minTolerationSeconds [Disruptive] [Conformance]                                          | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [k8s.io] [sig-node] NoExecuteTaintManager Single Pod [Serial] removing taint cancels eviction [Disruptive] [Conformance]                                                   | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates resource limits of pods that are allowed to run  [Conformance]                                                     | 1.9.0   | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that NodeSelector is respected if matching  [Conformance]                                                          | 1.9.0   | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that NodeSelector is respected if not matching  [Conformance]                                                      | 1.9.0   | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that there exists conflict between pods with same hostPort and protocol but one using 0.0.0.0 hostIP [Conformance] | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPredicates [Serial] validates that there is no conflict between pods with same hostPort but different hostIP and protocol [Conformance]          | 1.16.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] PreemptionExecutionPath runs ReplicaSets to verify preemption running path [Conformance]                                     | 1.19.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] PriorityClass endpoints verify PriorityClass endpoints can be operated with different HTTP methods [Conformance]             | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] validates basic preemption works [Conformance]                                                                               | 1.19.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    | [sig-scheduling] SchedulerPreemption [Serial] validates lower priority pod preemption by critical pod [Conformance]                                                        | 1.19.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ listCoreV1PodForAllNamespaces    |                                                                                                                                                                            |         | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ listCoreV1PodForAllNamespaces    |                                                                                                                                                                            |         | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ readCoreV1NamespacedPodStatus    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ readCoreV1NamespacedPodStatus    | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ replaceCoreV1NamespacedPodStatus | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-e2e-gci-gce/1331312508136329216
+ replaceCoreV1NamespacedPodStatus | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]                                                                                         | 1.20.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+ replaceCoreV1NamespacedPodStatus | [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]                                                                                      | 1.10.0  | https://prow.k8s.io/view/gcs/kubernetes-jenkins/logs/ci-kubernetes-gce-conformance-latest/1331264289754845184
+(21 rows)
+
+#+end_SRC
