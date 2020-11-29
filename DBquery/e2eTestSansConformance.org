@@ -1,6 +1,117 @@
 #+Title: Finding e2e test to promote
 Date: 30 Nov 2020
 
+*** First find the list of tables
+ #+BEGIN_SRC sql-mode
+\dt+
+ #+END_SRC
+
+
+
+*** See what columns is in the tables
+Open API
+ #+BEGIN_SRC sql-mode
+\d+ open_api
+ #+END_SRC
+
+ #+RESULTS:
+ #+begin_SRC example
+                                                                                Table "public.open_api"
+     Column    |            Type             | Collation | Nullable | Default | Storage  | Stats target |                                 Description
+ --------------+-----------------------------+-----------+----------+---------+----------+--------------+-----------------------------------------------------------------------------
+  release      | text                        |           | not null |         | extended |              | kubernetes release of this spec
+  release_date | timestamp without time zone |           |          |         | plain    |              | canonical release date for k8s release
+  endpoint     | text                        |           | not null |         | extended |              | kubernetes endpoint, the operation_id in the spec
+  level        | text                        |           |          |         | extended |              | alpha, beta, or stable
+  category     | text                        |           |          |         | extended |              | endpoint category, roughly its group, taken from the first tag in the spec.
+  path         | text                        |           |          |         | extended |              | the http path of the endpoint
+  k8s_group    | text                        |           |          |         | extended |              | k8s group for endpoint
+  k8s_version  | text                        |           |          |         | extended |              | k8s version for endpoint
+  k8s_kind     | text                        |           |          |         | extended |              | k8s kind  for endpoint
+  k8s_action   | text                        |           |          |         | extended |              | endpoint action, roughly related to an http method
+  deprecated   | boolean                     |           |          |         | plain    |              | is endpoint marked as deprecated?
+  description  | text                        |           |          |         | extended |              | description of endpoint
+  spec         | text                        |           |          |         | extended |              | the source for this open api spec, taken from github.
+ Indexes:
+     "open_api_pkey" PRIMARY KEY, btree (release, endpoint)
+ Access method: heap
+
+ #+end_SRC
+
+
+
+Open Audit Event
+ #+BEGIN_SRC sql-mode
+\d+ audit_event
+ #+END_SRC
+
+ #+RESULTS:
+ #+begin_SRC example
+                                                                                     Unlogged table "public.audit_event"
+     Column     |            Type             | Collation | Nullable |             Default              | Storage  | Stats target |                               Description
+ ---------------+-----------------------------+-----------+----------+----------------------------------+----------+--------------+-------------------------------------------------------------------------
+  release       | text                        |           |          |                                  | extended |              | release this test suite was run for
+  release_date  | text                        |           |          |                                  | extended |              | canonical release date (or test run date if version not released yet
+  audit_id      | text                        |           | not null |                                  | extended |              | audit event id as given in log.  Note these are not necessarily unique.
+  endpoint      | text                        |           |          |                                  | extended |              | endpoint hit by this audit event
+  useragent     | text                        |           |          |                                  | extended |              | useragent of the event, taken from events request header
+  test          | text                        |           |          |                                  | extended |              | the test codename if it can be extracted from useragent, else null
+  test_hit      | boolean                     |           |          |                                  | plain    |              | is the useragent of the event a test?
+  conf_test_hit | boolean                     |           |          |                                  | plain    |              | is the useragent of the event a conformance test?
+  data          | jsonb                       |           | not null |                                  | extended |              | the full json of the audit event
+  source        | text                        |           |          |                                  | extended |              | url of the bucket where the test run logs are stored
+  id            | integer                     |           | not null | generated by default as identity | plain    |              | generated id, this will be unique
+  ingested_at   | timestamp without time zone |           |          | CURRENT_TIMESTAMP                | plain    |              | the time at which the audit_event was added to this table
+ Indexes:
+     "audit_event_pkey" PRIMARY KEY, btree (id)
+ Access method: heap
+
+ #+end_SRC
+
+*** Conclusion:
+Table "public.audit_event" contain the Endpoint, test_hit and conf_test_hit.
+Result should show the endpoint where test_hit = True and conf_test_hit = False
+
+A further query could show the e2e test and go file containing the test.
+
+Step 1
+public.audit_event"
+
+#+begin_src sql-mode
+  select * from public.audit_event
+  -- where test_hit = 'false'
+  -- and endpoint ilike '%PriorityClass%' limit 5;
+  where endpoint ilike '%PriorityClass%' limit 5;
+
+
+
+#+end_src
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 *  Describing a field with \d+
 
@@ -17,7 +128,7 @@ Open API
 
 
 
-Open API
+Open Audit Event
  #+BEGIN_SRC sql-mode
 \d+ audit_event
  #+END_SRC
@@ -93,6 +204,21 @@ select * from conformance.new_endpoint
 -- where tested = 'f';                                   
  where endpoint ilike '%PriorityClass%' limit 50;        
 #+end_src                                                
+
+#+RESULTS:
+#+begin_SRC example
+                 endpoint                  | release | tested
+-------------------------------------------+---------+--------
+ createSchedulingV1PriorityClass           | 1.14.0  | t
+ deleteSchedulingV1CollectionPriorityClass | 1.14.0  | t
+ deleteSchedulingV1PriorityClass           | 1.14.0  | t
+ listSchedulingV1PriorityClass             | 1.14.0  | t
+ patchSchedulingV1PriorityClass            | 1.14.0  | t
+ readSchedulingV1PriorityClass             | 1.14.0  | t
+ replaceSchedulingV1PriorityClass          | 1.14.0  | t
+(7 rows)
+
+#+end_SRC
 
 
 
