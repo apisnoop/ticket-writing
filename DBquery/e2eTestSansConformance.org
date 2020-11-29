@@ -4,102 +4,95 @@ Date: 30 Nov 2020
 
 *  Describing a field with \d+
 
-Endpoint Coverage
  #+BEGIN_SRC sql-mode
-\d+ endpoint_coverage
+\dt+
  #+END_SRC
 
- #+RESULTS:
- #+begin_SRC example
-                                                          View "public.endpoint_coverage"
-    Column    |  Type   | Collation | Nullable | Default | Storage  |                                 Description
- -------------+---------+-----------+----------+---------+----------+-----------------------------------------------------------------------------
-  release     | text    |           |          |         | extended | the open api release, date of endpoint details
-  endpoint    | text    |           |          |         | extended | a kubernetes endpoint, the operation_id in the spec
-  level       | text    |           |          |         | extended | alpha, beta, or stable
-  category    | text    |           |          |         | extended | endpoint category, roughly its group, taken from the first tag in the spec.
-  path        | text    |           |          |         | extended | the http path of the endpoint
-  description | text    |           |          |         | extended |
-  kind        | text    |           |          |         | extended | k8s kind  for endpoint
-  version     | text    |           |          |         | extended | k8s version for endpoint
-  group       | text    |           |          |         | extended | k8s group for endpoint
-  action      | text    |           |          |         | extended | endpoint action, roughly related to an http method
-  tested      | boolean |           |          |         | plain    | was endpoint hit at least once by a test useragent
-  conf_tested | boolean |           |          |         | plain    | was endpoint hit at least once by a conformance test useragent
-  tests       | text[]  |           |          |         | extended | array of codenames of all tests that hit this endpoint
- View definition:
-  SELECT open_api.release,
-     open_api.endpoint,
-     open_api.level,
-     open_api.category,
-     open_api.path,
-     open_api.description,
-     open_api.k8s_kind AS kind,
-     open_api.k8s_version AS version,
-     open_api.k8s_group AS "group",
-     open_api.k8s_action AS action,
-     count(audit_event.test_hit) FILTER (WHERE audit_event.test_hit IS TRUE) > 0 AS tested,
-     count(audit_event.conf_test_hit) FILTER (WHERE audit_event.conf_test_hit IS TRUE) > 0 AS conf_tested,
-     array_agg(DISTINCT audit_event.test) AS tests
-    FROM open_api
-      LEFT JOIN audit_event USING (endpoint, release)
-   WHERE open_api.deprecated IS FALSE
-   GROUP BY open_api.release, open_api.endpoint, open_api.level, open_api.category, open_api.path, open_api.description, open_api.k8s_kind, open_api.k8s_version, open_api.k8s_group, open_api.k8s_action
-   ORDER BY open_api.level DESC, open_api.endpoint;
 
- #+end_SRC
 
 Open API
  #+BEGIN_SRC sql-mode
 \d+ open_api
  #+END_SRC
 
- #+RESULTS:
- #+begin_SRC example
-                                                                                Table "public.open_api"
-     Column    |            Type             | Collation | Nullable | Default | Storage  | Stats target |                                 Description
- --------------+-----------------------------+-----------+----------+---------+----------+--------------+-----------------------------------------------------------------------------
-  release      | text                        |           | not null |         | extended |              | kubernetes release of this spec
-  release_date | timestamp without time zone |           |          |         | plain    |              | canonical release date for k8s release
-  endpoint     | text                        |           | not null |         | extended |              | kubernetes endpoint, the operation_id in the spec
-  level        | text                        |           |          |         | extended |              | alpha, beta, or stable
-  category     | text                        |           |          |         | extended |              | endpoint category, roughly its group, taken from the first tag in the spec.
-  path         | text                        |           |          |         | extended |              | the http path of the endpoint
-  k8s_group    | text                        |           |          |         | extended |              | k8s group for endpoint
-  k8s_version  | text                        |           |          |         | extended |              | k8s version for endpoint
-  k8s_kind     | text                        |           |          |         | extended |              | k8s kind  for endpoint
-  k8s_action   | text                        |           |          |         | extended |              | endpoint action, roughly related to an http method
-  deprecated   | boolean                     |           |          |         | plain    |              | is endpoint marked as deprecated?
-  description  | text                        |           |          |         | extended |              | description of endpoint
-  spec         | text                        |           |          |         | extended |              | the source for this open api spec, taken from github.
- Indexes:
-     "open_api_pkey" PRIMARY KEY, btree (release, endpoint)
- Access method: heap
-
- #+end_SRC
 
 
+Open API
+ #+BEGIN_SRC sql-mode
+\d+ audit_event
+ #+END_SRC
+
+
+
+
+ Endpoint Coverage
+ #+BEGIN_SRC sql-mode
+\d+ endpoint_coverage
+ #+END_SRC
+
+
+
+‥○ Describing
+◉ What can be called in the "Audit event"
+#+begin_src sql-mode
+select * from describe_columns('public', 'audit_event');
+
+#+end_src
+
+
+
+#+begin_src sql-mode
+select * from describe_relations();                                         
+                                                                            
+
+#+end_src
 
 
 
 
 #+begin_src sql-mode
-   select distinct endpoint,
-        unnest(tests) as test
-     from endpoint_coverage
-    where tested = 'true'
-   and conf_tested = 'false'
-   and level like '%stable%'
-     group by endpoint limit 100;
+select * from describe_relation('conformance','progress');
+
+
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-ERROR:  syntax error at or near "from"
-LINE 3:      from endpoint_coverage
-             ^
-#+end_SRC
 
+
+#+begin_src sql-mode
+select * from describe_columns('public','endpoint_coverage');
+
+
+#+end_src
+
+#+begin_src sql-mode
+select * from describe_column('public','endpoint_coverage','tested');
+
+
+#+end_src
+
+
+
+#+begin_src sql-mode
+select * from describe_relation('conformance','eligible_endpoint');
+
+
+#+end_src
+
+
+
+
+
+
+
+
+
+List endpoints from conformance file                  
+                                                         
+#+begin_src sql-mode                                     
+select * from conformance.new_endpoint                   
+-- where tested = 'f';                                   
+ where endpoint ilike '%PriorityClass%' limit 50;        
+#+end_src                                                
 
 
 
@@ -114,6 +107,33 @@ LINE 3:      from endpoint_coverage
        and endpoint not like '%watch%'
      -- and release = '1.19.0'
      group by endpoint, test, level, category;
+#+end_src
+
+
+◉ Are endpoints hit by a test?                          
+#+begin_src sql-mode                                    
+  select endpoint, conf_test_hit, useragent             
+    from open_api                                       
+         Left join audit_event using(endpoint)          
+   where endpoint like '%PriorityClass%'                
+     and category = 'core'                              
+   group by endpoint, conf_test_hit, useragent;         
+
+
+
+* What do I want to see in the query?
+
+Show all endpoints hit by e2e test but not by a Conformance test.
+
+
+#+begin_src sql-mode
+   select distinct endpoint,
+        unnest(tests) as test
+     from endpoint_coverage
+    where tested = 'true'
+   and conf_tested = 'false'
+   and level like '%stable%'
+     group by endpoint limit 100;
 #+end_src
 
 
