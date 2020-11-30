@@ -384,8 +384,12 @@ public.audit_event"
 *** Step 3 Find the .go file for each test from step 2
 
 
-
-
+#+RESULTS:
+#+begin_SRC example
+ERROR:  relation "untested_stable_endpoint" does not exist
+LINE 2:   from untested_stable_endpoint
+               ^
+#+end_SRC
 
 *** Check which test hit and endpoint from Step 1
 #+begin_src sql-mode
@@ -402,71 +406,95 @@ public.audit_event"
 
 #+end_SRC
 
+
+
+
+
+
+______________________________________________
+
+* Looking at individual endpoint picked from APISnoop
+
+1 December 2020
+
+- listBatchV1NamespacedJob
+Description
+list or watch objects of kind Job
+
+Find the e2e test that touch the endpoint.
+
+#+begin_src sql-mode
+   select distinct endpoint, test_hit,conf_test_hit, test from public.audit_event
+    where test_hit = 'true'
+     and conf_test_hit = 'false'
+     and endpoint like '%BatchV1NamespacedJob%'
+       and endpoint not like '%Proxy%'
+       and test not like '%storage%'
+       and test not like '%volume%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%' limit 100;
+
+
+
+#+end_src
+
 #+RESULTS:
 #+begin_SRC example
-               endpoint                | conf_test_hit |                                                        useragent
----------------------------------------+---------------+-------------------------------------------------------------------------------------------------------------------------
- replaceCoreV1NamespacedServiceAccount | f             | e2e.test/v1.20.0 (linux/amd64) kubernetes/e3de622 -- [sig-auth] ServiceAccounts should ensure a single API token exists
- replaceCoreV1NamespacedServiceAccount | f             | kube-controller-manager/v1.20.0 (linux/amd64) kubernetes/e3de622/tokens-controller
-(2 rows)
+          endpoint          | test_hit | conf_test_hit |                                                 test
+----------------------------+----------+---------------+-------------------------------------------------------------------------------------------------------
+ createBatchV1NamespacedJob | t        | f             | [sig-apps] Job should fail to exceed backoffLimit
+ createBatchV1NamespacedJob | t        | f             | [sig-apps] Job should fail when exceeds active deadline
+ createBatchV1NamespacedJob | t        | f             | [sig-apps] Job should remove pods when job is deleted
+ createBatchV1NamespacedJob | t        | f             | [sig-apps] Job should run a job to completion when tasks sometimes fail and are not locally restarted
+ createBatchV1NamespacedJob | t        | f             | [sig-apps] Job should run a job to completion when tasks succeed
+ createBatchV1NamespacedJob | t        | f             | [sig-auth] Metadata Concealment should run a check-metadata-concealment job to completion
+ deleteBatchV1NamespacedJob | t        | f             | [sig-apps] CronJob should remove from active list jobs that have been deleted
+ deleteBatchV1NamespacedJob | t        | f             | [sig-apps] Job should remove pods when job is deleted
+ listBatchV1NamespacedJob   | t        | f             | [sig-api-machinery] Garbage collector should delete jobs and pods created by cronjob
+ listBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should be able to schedule after more than 100 missed schedule
+ listBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should delete failed finished jobs with limit of one job
+ listBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should delete successful finished jobs with limit of one successful job
+ listBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should not emit unexpected warnings
+ listBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should replace jobs when ReplaceConcurrent
+ listBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should schedule multiple jobs concurrently
+ readBatchV1NamespacedJob   | t        | f             | [sig-apps] CronJob should remove from active list jobs that have been deleted
+ readBatchV1NamespacedJob   | t        | f             | [sig-apps] Job should fail to exceed backoffLimit
+ readBatchV1NamespacedJob   | t        | f             | [sig-apps] Job should fail when exceeds active deadline
+ readBatchV1NamespacedJob   | t        | f             | [sig-apps] Job should remove pods when job is deleted
+ readBatchV1NamespacedJob   | t        | f             | [sig-apps] Job should run a job to completion when tasks sometimes fail and are not locally restarted
+ readBatchV1NamespacedJob   | t        | f             | [sig-apps] Job should run a job to completion when tasks succeed
+ readBatchV1NamespacedJob   | t        | f             | [sig-auth] Metadata Concealment should run a check-metadata-concealment job to completion
+(22 rows)
 
 #+end_SRC
 
+See Conformance test hiting endpoints in the group
+
+#+begin_src sql-mode
+   select distinct endpoint, test_hit,conf_test_hit, test from public.audit_event
+    where test_hit = 'true'
+     and conf_test_hit = 'true'
+     and endpoint like '%BatchV1NamespacedJob%'
+       and endpoint not like '%Proxy%'
+       and test not like '%storage%'
+       and test not like '%volume%'
+       and endpoint not like '%alpha%'
+       and endpoint not like '%beta%' limit 100;
 
 
 
+#+end_src
 
+#+RESULTS:
+#+begin_SRC example
+          endpoint          | test_hit | conf_test_hit |                                                      test
+----------------------------+----------+---------------+-----------------------------------------------------------------------------------------------------------------
+ createBatchV1NamespacedJob | t        | t             | [sig-apps] Job should adopt matching orphans and release non-matching pods [Conformance]
+ createBatchV1NamespacedJob | t        | t             | [sig-apps] Job should delete a job [Conformance]
+ createBatchV1NamespacedJob | t        | t             | [sig-apps] Job should run a job to completion when tasks sometimes fail and are locally restarted [Conformance]
+ deleteBatchV1NamespacedJob | t        | t             | [sig-apps] Job should delete a job [Conformance]
+ readBatchV1NamespacedJob   | t        | t             | [sig-apps] Job should delete a job [Conformance]
+ readBatchV1NamespacedJob   | t        | t             | [sig-apps] Job should run a job to completion when tasks sometimes fail and are locally restarted [Conformance]
+(6 rows)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-*** Step 3 Find the .go file for each test from step 2
+#+end_SRC
