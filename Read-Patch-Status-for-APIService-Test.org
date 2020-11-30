@@ -47,6 +47,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
   #+end_SRC
 
+
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]]
@@ -159,7 +160,7 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
-DELETE 75045
+DELETE 394884
 #+end_SRC
 
 ** Discover useragents:
@@ -187,7 +188,7 @@ select * from testing.endpoint_hit_by_new_test;
 #+begin_SRC example
      useragent     |               endpoint                | hit_by_ete | hit_by_new_test
 -------------------+---------------------------------------+------------+-----------------
- live-test-writing | readApiregistrationV1APIServiceStatus | f          |               5
+ live-test-writing | readApiregistrationV1APIServiceStatus | f          |              10
 (1 row)
 
 #+end_SRC
@@ -359,3 +360,24 @@ CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
 
 #+end_SRC
 
+** x30.1
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+  select distinct right(test,50) as test, endpoint, right(useragent,50) as useragent
+  from testing.audit_event
+  where endpoint ilike '%ApiregistrationV1APIServiceStatus'
+  order by endpoint
+  limit 30;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                        test                        |                 endpoint                 |                     useragent
+----------------------------------------------------+------------------------------------------+----------------------------------------------------
+  Server using the current Aggregator [Conformance] | patchApiregistrationV1APIServiceStatus   |  Server using the current Aggregator [Conformance]
+ live-test-writing                                  | readApiregistrationV1APIServiceStatus    | live-test-writing
+  Server using the current Aggregator [Conformance] | readApiregistrationV1APIServiceStatus    |  Server using the current Aggregator [Conformance]
+ apiserver/v1.19.0 (linux/amd64) kubernetes/e199641 | replaceApiregistrationV1APIServiceStatus | apiserver/v1.19.0 (linux/amd64) kubernetes/e199641
+(4 rows)
+
+#+end_SRC

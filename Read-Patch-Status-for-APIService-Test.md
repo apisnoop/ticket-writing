@@ -152,7 +152,7 @@ delete from testing.audit_event;
 ```
 
 ```example
-DELETE 75045
+DELETE 394884
 ```
 
 ## Discover useragents:
@@ -180,7 +180,7 @@ select * from testing.endpoint_hit_by_new_test;
 ```example
      useragent     |               endpoint                | hit_by_ete | hit_by_new_test
 -------------------|---------------------------------------|------------|-----------------
- live-test-writing | readApiregistrationV1APIServiceStatus | f          |               5
+ live-test-writing | readApiregistrationV1APIServiceStatus | f          |              10
 (1 row)
 
 ```
@@ -330,5 +330,26 @@ select data->>'verb' as verb, data->'objectRef'->'name' as name, data->>'request
  update | "v1alpha1.wardle.example.com" | /apis/apiregistration.k8s.io/v1/apiservices/v1alpha1.wardle.example.com/status |
  update | "v1alpha1.wardle.example.com" | /apis/apiregistration.k8s.io/v1/apiservices/v1alpha1.wardle.example.com/status |
 (16 rows)
+
+```
+
+## x30.1
+
+```sql-mode
+select distinct right(test,50) as test, endpoint, right(useragent,50) as useragent
+from testing.audit_event
+where endpoint ilike '%ApiregistrationV1APIServiceStatus'
+order by endpoint
+limit 30;
+```
+
+```example
+                        test                        |                 endpoint                 |                     useragent
+----------------------------------------------------|------------------------------------------|----------------------------------------------------
+  Server using the current Aggregator [Conformance] | patchApiregistrationV1APIServiceStatus   |  Server using the current Aggregator [Conformance]
+ live-test-writing                                  | readApiregistrationV1APIServiceStatus    | live-test-writing
+  Server using the current Aggregator [Conformance] | readApiregistrationV1APIServiceStatus    |  Server using the current Aggregator [Conformance]
+ apiserver/v1.19.0 (linux/amd64) kubernetes/e199641 | replaceApiregistrationV1APIServiceStatus | apiserver/v1.19.0 (linux/amd64) kubernetes/e199641
+(4 rows)
 
 ```
