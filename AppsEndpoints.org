@@ -1,0 +1,100 @@
+#+Title: AppsEndpoints checks of 1.9
+
+* List of Apps Endpoint by family:
+
+[[https://github.com/kubernetes/kubernetes/tree/master/test/e2e/apps][Apps e2e test repo]]
+
+
+*** Endpoint Deplo0yment
+deleteAppsV1CollectionNamespacedDeployment		1.20.0
+patchAppsV1NamespacedDeployment	            	1.20.0
+patchAppsV1NamespacedDeploymentStatus	       	1.20.0
+readAppsV1NamespacedDeploymentStatus	      	1.20.0
+createAppsV1NamespacedDeployment	          	1.9.0
+deleteAppsV1NamespacedDeployment	            1.9.0
+listAppsV1NamespacedDeployment	            	1.9.0
+readAppsV1NamespacedDeployment	              1.12.0
+replaceAppsV1NamespacedDeployment	            1.12.0
+
+patchAppsV1NamespacedDeploymentScale	  	not tested
+readAppsV1NamespacedDeploymentScale	      not tested
+replaceAppsV1NamespacedDeploymentScale		not tested
+replaceAppsV1NamespacedDeploymentStatus		not tested
+
+[[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/deployment.go][Deployment.go]]
+
+
+*** Endpoint DaemonSet
+createAppsV1NamespacedDaemonSet		1.10.0
+deleteAppsV1NamespacedDaemonSet		1.10.0
+listAppsV1NamespacedDaemonSet	  	1.10.0
+patchAppsV1NamespacedDaemonSet  	1.10.0
+readAppsV1NamespacedDaemonSet	  	1.10.0
+replaceAppsV1NamespacedDaemonSet	1.10.0
+
+deleteAppsV1CollectionNamespacedDaemonSet	not tested
+listAppsV1DaemonSetForAllNamespaces	      not tested
+patchAppsV1NamespacedDaemonSetStatus    	not tested
+readAppsV1NamespacedDaemonSetStatus	    	not tested
+replaceAppsV1NamespacedDaemonSetStatus	  not tested
+
+[[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/daemon_set.go][Daemon_Set.go]]
+
+
+
+
+*** Endpoint NamespacedStatefulSet
+createAppsV1NamespacedStatefulSet	     	1.9.0
+deleteAppsV1NamespacedStatefulSet	    	1.9.0
+listAppsV1NamespacedStatefulSet	      	1.9.0
+readAppsV1NamespacedStatefulSet         1.9.0
+readAppsV1NamespacedStatefulSetScale	  1.16.0
+replaceAppsV1NamespacedStatefulSet	   	1.9.0
+replaceAppsV1NamespacedStatefulSetScale 1.16.0
+
+deleteAppsV1CollectionNamespacedStatefulSet	not tested
+patchAppsV1NamespacedStatefulSet	          not tested
+patchAppsV1NamespacedStatefulSetScale	    	not tested
+patchAppsV1NamespacedStatefulSetStatus	   	not tested
+readAppsV1NamespacedStatefulSetStatus	    	not tested
+replaceAppsV1NamespacedStatefulSetStatus	  not tested
+
+[[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/statefulset.go][Statefulset.go]]
+
+
+*** Endpoint ControllerRevision
+listAppsV1NamespacedControllerRevision		1.10.0
+
+createAppsV1NamespacedControllerRevision	         	not tested
+readAppsV1NamespacedControllerRevision	            not tested
+patchAppsV1NamespacedControllerRevision	            not tested
+replaceAppsV1NamespacedControllerRevision	        	not tested
+deleteAppsV1CollectionNamespacedControllerRevision	not tested
+deleteAppsV1NamespacedControllerRevision	        	not tested
+listAppsV1ControllerRevisionForAllNamespaces      	not tested
+
+No ControllerRevision.go file
+
+*** Endpoint ReplicaSet
+createAppsV1NamespacedReplicaSet	      	1.9.0
+deleteAppsV1NamespacedReplicaSet	        1.16.0
+listAppsV1NamespacedReplicaSet	          1.9.0
+readAppsV1NamespacedReplicaSet	          1.9.0
+
+patchAppsV1NamespacedReplicaSet	          	not tested
+replaceAppsV1NamespacedReplicaSet	        	not tested
+
+patchAppsV1NamespacedReplicaSetStatus	    	not tested
+readAppsV1NamespacedReplicaSetStatus	      not tested
+replaceAppsV1NamespacedReplicaSetStatus	   	not tested
+
+patchAppsV1NamespacedReplicaSetScale	    	not tested
+readAppsV1NamespacedReplicaSetScale	      	not tested
+replaceAppsV1NamespacedReplicaSetScale	   	not tested
+
+deleteAppsV1CollectionNamespacedReplicaSet	not tested
+
+
+
+
+[[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/replica_set.go][ReplicaSet.go]]
