@@ -5,7 +5,7 @@
 [[https://github.com/kubernetes/kubernetes/tree/master/test/e2e/apps][Apps e2e test repo]]
 
 
-*** Endpoint Deplo0yment
+*** Endpoint Deployment
 deleteAppsV1CollectionNamespacedDeployment		1.20.0
 patchAppsV1NamespacedDeployment	            	1.20.0
 patchAppsV1NamespacedDeploymentStatus	       	1.20.0
@@ -16,11 +16,25 @@ listAppsV1NamespacedDeployment	            	1.9.0
 readAppsV1NamespacedDeployment	              1.12.0
 replaceAppsV1NamespacedDeployment	            1.12.0
 
+**Scale**
 patchAppsV1NamespacedDeploymentScale	  	not tested
 readAppsV1NamespacedDeploymentScale	      not tested
 replaceAppsV1NamespacedDeploymentScale		not tested
+
+[[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#patch-scale-deployment-v1-apps][Patch]]
+[[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-deployment-v1-apps][Read]]
+[[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#replace-scale-deployment-v1-apps][Replace]]
+
+**Status**
 replaceAppsV1NamespacedDeploymentStatus		not tested
 
+
+**status**
+[[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#deployment-v1-apps][DeploymentStatus]]	Most recently observed status of the Deployment.
+
+[[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#replace-status-deployment-v1-apps][Replace Status]]  replace status of the specified Deployment
+
+**e2e Test**
 [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/deployment.go][Deployment.go]]
 
 
