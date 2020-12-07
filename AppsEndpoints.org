@@ -28,8 +28,8 @@ replaceAppsV1NamespacedDeployment	            1.12.0
 
 **Succesful Conformance "Scale" tests**
 - patchCoreV1NamespacedReplicationControllerScale - [sig-apps] ReplicationController should test the lifecycle of a ReplicationController [Conformance]
- [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]]
-
+ [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L278-L316][rc.go]]
+ [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#patch-scale-replicationcontroller-v1-core][Docs for patch scale of replicationcontroller]]
 - readAppsV1NamespacedStatefulSetScale - [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
 - replaceAppsV1NamespacedStatefulSetScale - [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
 [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/statefulset.go#L839-L872][statefulset.go]]
@@ -39,6 +39,7 @@ replaceAppsV1NamespacedDeployment	            1.12.0
 
 **** **Status**
 replaceAppsV1NamespacedDeploymentStatus		not tested
+Attempt at teting [[https://github.com/kubernetes/kubernetes/blame/e1c617a88ec286f5f6cb2589d6ac562d095e1068/test/e2e/apps/deployment.go#L337][in deployment.go]]
 
 **Conformance tested 'replace ____  Status' Endpoint**
 - replaceCoreV1NamespacedReplicationControllerStatus - [sig-apps] ReplicationController should test the lifecycle of a ReplicationController [Conformance] [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]]
@@ -49,6 +50,7 @@ replaceAppsV1NamespacedDeploymentStatus		not tested
 
 
 
+* See what test touch an endpoint
 
 #+begin_src sql-mode
    select endpoint,
@@ -60,6 +62,21 @@ replaceAppsV1NamespacedDeploymentStatus		not tested
      -- and release = '1.19.0'
      group by endpoint, test, level, category;
 #+end_src
+
+
+deployment should support proportional scaling
+
+* See what endpoints are hit by a spesific test
+
+#+begin_src sql-mode
+  select audit_id, endpoint
+    from audit_event
+   where test like '%should not disrupt a cloud load-balance%'
+       and endpoint ilike '%Deployment%'
+   order by endpoint;
+
+#+end_src
+
 
 
 
