@@ -5,6 +5,7 @@
 [[https://github.com/kubernetes/kubernetes/tree/master/test/e2e/apps][Apps e2e test repo]]
 
 
+[[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/deployment.go][deployment.go]]
 *** Endpoint Deployment
 deleteAppsV1CollectionNamespacedDeployment		1.20.0
 patchAppsV1NamespacedDeployment	            	1.20.0
