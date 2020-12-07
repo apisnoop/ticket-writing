@@ -27,7 +27,7 @@ replaceAppsV1NamespacedDeployment	            1.12.0
 
 **Succesful Conformance "Scale" tests**
 - patchCoreV1NamespacedReplicationControllerScale - [sig-apps] ReplicationController should test the lifecycle of a ReplicationController [Conformance]
- [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]
+ [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]]
 
 - readAppsV1NamespacedStatefulSetScale - [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
 - replaceAppsV1NamespacedStatefulSetScale - [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
