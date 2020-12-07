@@ -16,7 +16,7 @@ listAppsV1NamespacedDeployment	            	1.9.0
 readAppsV1NamespacedDeployment	              1.12.0
 replaceAppsV1NamespacedDeployment	            1.12.0
 
-**Scale**
+**** **Scale**
 patchAppsV1NamespacedDeploymentScale	  	not tested
 readAppsV1NamespacedDeploymentScale	      not tested
 replaceAppsV1NamespacedDeploymentScale		not tested
@@ -27,7 +27,7 @@ replaceAppsV1NamespacedDeploymentScale		not tested
 
 **Succesful Conformance "Scale" tests**
 - patchCoreV1NamespacedReplicationControllerScale - [sig-apps] ReplicationController should test the lifecycle of a ReplicationController [Conformance]
- [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]]
+ [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]
 
 - readAppsV1NamespacedStatefulSetScale - [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
 - replaceAppsV1NamespacedStatefulSetScale - [sig-apps] StatefulSet [k8s.io] Basic StatefulSet functionality [StatefulSetBasic] should have a working scale subresource [Conformance]
@@ -36,15 +36,17 @@ replaceAppsV1NamespacedDeploymentScale		not tested
 
 
 
-**Status**
+**** **Status**
 replaceAppsV1NamespacedDeploymentStatus		not tested
 
-Conformance tested 'replace ____  Status' Endpoint
-replaceCoreV1NamespacedReplicationControllerStatus
-replaceCertificatesV1CertificateSigningRequestStatus
-replaceNetworkingV1NamespacedIngressStatus
+**Conformance tested 'replace ____  Status' Endpoint**
+replaceCoreV1NamespacedReplicationControllerStatus - [sig-apps] ReplicationController should test the lifecycle of a ReplicationController [Conformance] [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/rc.go#L107-L391][rc.go]]
+replaceCertificatesV1CertificateSigningRequestStatus - [sig-auth] Certificates API [Privileged:ClusterAdmin] should support CSR API operations [Conformance] [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/auth/certificates.go#L186-L403][certificates.go]]
+replaceNetworkingV1NamespacedIngressStatus - [sig-network] Ingress API should support creating Ingress API operations [Conformance] [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/network/ingress.go#L917-L1153][ingress.go]]
 replaceApiextensionsV1CustomResourceDefinitionStatus - testname: Custom Resource Definition, status sub-resource [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apimachinery/custom_resource_definition.go#L139-L382][custom_resource_definition.go]]
-replaceCoreV1NamespacedPodStatus
+replaceCoreV1NamespacedPodStatus - [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance][[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/common/pods.go#L894-L1044][pod.go]]     & [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance] [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/daemon_set.go#L277-L303][daemon_set.go]]
+
+
 
 
 #+begin_src sql-mode
@@ -58,38 +60,6 @@ replaceCoreV1NamespacedPodStatus
      group by endpoint, test, level, category;
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
-                          endpoint                           |                                                                                                      test
--------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- replaceApiextensionsV1CustomResourceDefinitionStatus        | [sig-api-machinery] CustomResourceDefinition resources [Privileged:ClusterAdmin] Simple CustomResourceDefinition getting/updating/patching custom resource definition status sub-resource works  [Conformance]
- replaceApiextensionsV1CustomResourceDefinitionStatus        |
- replaceApiregistrationV1APIServiceStatus                    |
- replaceAppsV1NamespacedDaemonSetStatus                      |
- replaceAppsV1NamespacedDeploymentStatus                     |
- replaceAppsV1NamespacedReplicaSetStatus                     |
- replaceAppsV1NamespacedStatefulSetStatus                    |
- replaceAutoscalingV1NamespacedHorizontalPodAutoscalerStatus |
- replaceBatchV1NamespacedJobStatus                           |
- replaceCertificatesV1CertificateSigningRequestStatus        | [sig-auth] Certificates API [Privileged:ClusterAdmin] should support CSR API operations [Conformance]
- replaceCertificatesV1CertificateSigningRequestStatus        |
- replaceCoreV1NamespacedPersistentVolumeClaimStatus          |
- replaceCoreV1NamespacedPodStatus                            | [k8s.io] Pods should run through the lifecycle of Pods and PodStatus [Conformance]
- replaceCoreV1NamespacedPodStatus                            | [sig-apps] Daemon set [Serial] should retry creating failed daemon pods [Conformance]
- replaceCoreV1NamespacedPodStatus                            |
- replaceCoreV1NamespacedReplicationControllerStatus          | [sig-apps] ReplicationController should test the lifecycle of a ReplicationController [Conformance]
- replaceCoreV1NamespacedReplicationControllerStatus          |
- replaceCoreV1NamespacedResourceQuotaStatus                  |
- replaceCoreV1NamespacedServiceStatus                        |
- replaceCoreV1NamespaceStatus                                |
- replaceCoreV1NodeStatus                                     |
- replaceCoreV1PersistentVolumeStatus                         |
- replaceNetworkingV1NamespacedIngressStatus                  | [sig-network] Ingress API should support creating Ingress API operations [Conformance]
- replaceNetworkingV1NamespacedIngressStatus                  |
- replaceStorageV1VolumeAttachmentStatus                      |
-(25 rows)
-
-#+end_SRC
 
 
 **status**
