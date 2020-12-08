@@ -52,10 +52,10 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 
 * API Reference and feature documentation                            :export:
-- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]
-- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]]
 
-- [[https://kubernetes.io/docs/reference/kubectl/cheatsheet/#updating-resources][kubeclt scale / updating resources]
+- [[https://kubernetes.io/docs/reference/kubectl/cheatsheet/#updating-resources][kubeclt scale / updating resources]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#scale][Scale]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#patch][kubectl-commands#patch]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#replace][kubectl-commands#replace]]
@@ -63,18 +63,9 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 * The mock test                                                      :export:
 ** Test outline
 
-#+begin_src shell :results raw
-pwd
-ls -al /home/ii/ticket-writing | grep yaml
-#+end_src
 
-#+RESULTS:
-#+begin_example
-/home/ii/ticket-writing
--rw-r--r--  1 ii ii    444 Dec  9 10:53 deployment_test.yaml
-#+end_example
 
-1. Create a Deployment
+*** 1. Create a deployment yaml file, namespace and Deployment
 
 Create deployment yaml file:
 #+begin_src yaml :tangle deployment_test.yaml
@@ -102,6 +93,15 @@ spec:
 #+end_src
 // Tangle - `,bt`
 
+
+See if the yaml file was created
+#+begin_src shell :results raw
+pwd
+ls -al /home/ii/ticket-writing | grep yaml
+#+end_src
+
+
+Create a Namespace
 #+begin_src shell :results raw
 kubectl create namespace app-deploy-test
 #+end_src
@@ -111,7 +111,7 @@ kubectl create namespace app-deploy-test
 namespace/app-deploy-test created
 #+end_example
 
-
+Create a Deployment
 #+begin_src shell :results raw
 
 kubectl apply -f deployment_test.yaml --namespace=app-deploy-test
@@ -122,7 +122,7 @@ kubectl apply -f deployment_test.yaml --namespace=app-deploy-test
 deployment.apps/nginx-deployment created
 #+end_example
 
-  2. Find the deployment
+***  2. Find the deployment
 #+begin_src shell :results raw
   kubectl get deployments -A | grep app
 #+end_src
@@ -140,7 +140,7 @@ metallb-system    controller                               1/1     1            
 #+end_example
 
 
-3. Scale the Deployment
+*** 3. Scale the Deployment
 
 #+begin_src shell :results raw
   kubectl scale deployment.v1.apps/nginx-deployment -n app-deploy-test --replicas=4
@@ -157,7 +157,7 @@ deployment "nginx-deployment" successfully rolled out
 #+end_example
 
 
-4. Update the deployment:
+*** 4. Update the deployment:
 #+begin_src shell :results raw
 kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-test nginx=nginx:1.16.0 --record
 #+end_src
@@ -177,7 +177,7 @@ kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-test nginx=n
 deployment.apps/nginx-deployment image updated
 #+end_example
 
-5. Describe the deployments to see if it was updated with history
+*** 5. Describe the deployments to see if it was updated with history
 #+begin_src shell :results raw
   kubectl describe deployments -n app-deploy-test | grep image
   kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-test
@@ -195,7 +195,7 @@ REVISION  CHANGE-CAUSE
 #+end_example
 
 
-5. Describe the status of the deployment
+*** 6. Describe the status of the deployment
 #+begin_src shell :results raw
 kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-test
 #+end_src
@@ -206,7 +206,7 @@ deployment "nginx-deployment" successfully rolled out
 #+end_example
 
 
-6. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
+*** 7. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
 
 #+begin_src shell :results raw
 //This command fail!
