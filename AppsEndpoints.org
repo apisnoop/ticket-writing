@@ -22,6 +22,8 @@ replaceAppsV1NamespacedDeployment	            1.12.0
 - readAppsV1NamespacedDeploymentScale	      not tested
 - replaceAppsV1NamespacedDeploymentScale		not tested
 
+[[https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment][K8s Doc on Scaling Deployments]]
+
 [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#patch-scale-deployment-v1-apps][Patch]]
 [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-deployment-v1-apps][Read]]
 [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#replace-scale-deployment-v1-apps][Replace]]
