@@ -50,27 +50,124 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 
 
+
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]
 
-- [[https://kubernetes.io/docs/reference/kubectl/cheatsheet/#updating-resources][kubeclt scale / updating resources]]
-
-
+- [[https://kubernetes.io/docs/reference/kubectl/cheatsheet/#updating-resources][kubeclt scale / updating resources]
+- [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#scale][Scale]]
+- [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#patch][kubectl-commands#patch]]
+- [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#replace][kubectl-commands#replace]]
 
 * The mock test                                                      :export:
 ** Test outline
-1. Create a RESOURCENAME with a static label
 
-2. Patch the RESOURCENAME with a new label and updated data
+#+begin_src shell :results raw
+pwd
+ls -al /home/ii/ticket-writing | grep yaml
+#+end_src
 
-3. Get the RESOURCENAME to ensure it's patched
+#+RESULTS:
+#+begin_example
+/home/ii/ticket-writing
+-rw-r--r--  1 ii ii    444 Dec  9 10:53 deployment_test.yaml
+#+end_example
 
-4. List all RESOURCENAMEs in all Namespaces with a static label
-   find the RESOURCENAME
-   ensure that the RESOURCENAME is found and is patched
+1. Create a Deployment
 
-5. Delete Namespaced RESOURCENAME via a Collection with a LabelSelector
+Create deployment yaml file:
+#+begin_src yaml :tangle deployment_test.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+#+end_src
+// Tangle - `,bt`
+
+#+begin_src shell :results raw
+kubectl create namespace app-deploy-test
+#+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/app-deploy-test created
+#+end_example
+
+
+#+begin_src shell :results raw
+
+kubectl apply -f deployment_test.yaml --namespace=app-deploy-test
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/nginx-deployment created
+#+end_example
+
+  2. Find the deployment
+#+begin_src shell :results raw
+  kubectl get deployments -A | grep app
+#+end_src
+
+#+RESULTS:
+#+begin_example
+apisnoop          auditlogger                              1/1     1            1           4h26m
+app-deploy-test   nginx-deployment                         3/3     3            3           13s
+cert-manager      cert-manager                             1/1     1            1           4h29m
+cert-manager      cert-manager-cainjector                  1/1     1            1           4h29m
+cert-manager      cert-manager-webhook                     1/1     1            1           4h29m
+external-dns      external-dns                             1/1     1            1           4h27m
+kube-system       packet-cloud-controller-manager          1/1     1            1           4h29m
+metallb-system    controller                               1/1     1            1           4h27m
+#+end_example
+
+
+3. Scale the Deployment
+
+#+begin_src shell :results raw
+  kubectl scale deployment.v1.apps/nginx-deployment -n app-deploy-tes t --replicas=4
+sleep 5
+  kubectl get deployments -A | grep app
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/nginx-deployment scaled
+app-deploy-test   nginx-deployment                         4/4     4            4           2m37s
+#+end_example
+
+
+
+#+begin_src shell :results raw
+
+
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+
+
 
 ** Test the functionality in Go
    #+NAME: Mock Test In Go
