@@ -143,29 +143,79 @@ metallb-system    controller                               1/1     1            
 3. Scale the Deployment
 
 #+begin_src shell :results raw
-  kubectl scale deployment.v1.apps/nginx-deployment -n app-deploy-tes t --replicas=4
-sleep 5
+  kubectl scale deployment.v1.apps/nginx-deployment -n app-deploy-test --replicas=4
+  sleep 5
   kubectl get deployments -A | grep app
+  kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-test
 #+end_src
 
 #+RESULTS:
 #+begin_example
 deployment.apps/nginx-deployment scaled
-app-deploy-test   nginx-deployment                         4/4     4            4           2m37s
+app-deploy-test   nginx-deployment                         4/4     4            4           28m
+deployment "nginx-deployment" successfully rolled out
 #+end_example
 
 
+4. Update the deployment:
+#+begin_src shell :results raw
+kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-test nginx=nginx:1.16.0 --record
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/nginx-deployment image updated
+#+end_example
+
 
 #+begin_src shell :results raw
+kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-test nginx=nginx:1.16.1 --record
+#+end_src
+
+#+RESULTS:
+#+begin_example
+deployment.apps/nginx-deployment image updated
+#+end_example
+
+5. Describe the deployments to see if it was updated with history
+#+begin_src shell :results raw
+  kubectl describe deployments -n app-deploy-test | grep image
+  kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-test
+#+end_src
+
+#+RESULTS:
+#+begin_example
+                          kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-test --record=true
+deployment.apps/nginx-deployment
+REVISION  CHANGE-CAUSE
+1         <none>
+3         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.0 --namespace=app-deploy-test --record=true
+4         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-test --record=true
+
+#+end_example
 
 
+5. Describe the status of the deployment
+#+begin_src shell :results raw
+kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-test
+#+end_src
 
+#+RESULTS:
+#+begin_example
+deployment "nginx-deployment" successfully rolled out
+#+end_example
+
+
+6. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
+
+#+begin_src shell :results raw
+//This command fail!
+kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-test '{"spec":{"progressDeadlineSeconds":60}}'
 #+end_src
 
 #+RESULTS:
 #+begin_example
 #+end_example
-
 
 
 
