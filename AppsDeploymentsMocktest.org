@@ -67,7 +67,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 *** 1. Create a deployment yaml file, namespace and Deployment
 
-Create deployment yaml file:
+- Create deployment yaml file:
 #+begin_src yaml :tangle deployment_test.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -94,7 +94,7 @@ spec:
 // Tangle - `,bt`
 
 
-See if the yaml file was created
+- See if the yaml file was created
 #+begin_src shell :results raw
 pwd
 ls -al /home/ii/ticket-writing | grep yaml
@@ -107,7 +107,7 @@ ls -al /home/ii/ticket-writing | grep yaml
 #+end_example
 
 
-Create a Namespace
+- Create a Namespace
 #+begin_src shell :results raw
 kubectl create namespace app-deploy-tests
 #+end_src
@@ -118,7 +118,7 @@ namespace/app-deploy-tests created
 #+end_example
 
 
-Create a Deployment
+- Create a Deployment
 #+begin_src shell :results raw
 kubectl apply -f deployment_test.yaml --namespace=app-deploy-tests
 #+end_src
@@ -224,6 +224,26 @@ kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec
 #+RESULTS:
 #+begin_example
 #+end_example
+
+*** Cleanup
+
+
+- Delete the deployment and the namespace
+
+#+begin_src shell :results raw
+kubectl delete deploy/nginx-deployment namespace/
+#+end_src
+
+
+- Look for deployment and namespace to check if it is deleted
+
+#+begin_src shell :results raw
+  kubectl get namespace app-deploy-tests
+  kubectl get deployment nginx-deployment
+#+end_src
+
+
+
 
 
 
