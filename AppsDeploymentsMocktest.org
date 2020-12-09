@@ -68,6 +68,14 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 *** 1. Create a deployment yaml file, namespace and Deployment
 
+**** Questions:
+- In the Golang test setting  ~  config.UserAgent = "live-test-writing" ~
+- What user agent is operating when doing kubeclt commands?
+- How can these the kubeclt results be seen in APISnoop?
+- Can the useragent be configured for kubeclt commands?
+
+
+
 - Create deployment yaml file:
 #+begin_src yaml :tangle deployment_test.yaml
 apiVersion: apps/v1
@@ -139,7 +147,7 @@ kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=
 #+end_src
 
 
-- and update it again
+- and update it agaian, because we can...
 
 #+begin_src shell :results raw
 kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.1 --record
@@ -186,19 +194,34 @@ kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec
 - ALL DONE!
 
 
+- Count all audit events
+#+begin_src sql-mode
+select count(*) from testing.audit_event;
+#+end_src
 
+
+- Delete all audit events
+#+begin_src sql-mode
+delete from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 806800
+#+end_SRC
 
 
 
 *** Test to see is new endpoint was hit by the test
 #+begin_src sql-mode :eval never-export :exports both :session none
-select distinct  endpoint, useragent
-from testing.audit_event
-where endpoint ilike '%Deployment%'
-and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
-and useragent like 'e2e%'
-order by endpoint
-limit 10;
+  select distinct  endpoint, useragent
+                   -- to_char(to_timestamp(release_date::bigint), ' HH:MI') as time
+  from testing.audit_event
+  where endpoint ilike '%Deployment%'
+  -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+  and useragent like 'kubectl%'
+  order by endpoint
+  limit 100;
 
 #+end_src
 
