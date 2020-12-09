@@ -36,6 +36,18 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       limit 25;
   #+end_src
 
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                  endpoint                 |    kind
+  -----------------------------------------+------------
+   replaceAppsV1NamespacedDeploymentStatus | Deployment
+   replaceAppsV1NamespacedDeploymentScale  | Scale
+   readAppsV1NamespacedDeploymentScale     | Scale
+   patchAppsV1NamespacedDeploymentScale    | Scale
+  (4 rows)
+
+  #+end_SRC
+
 
 
 
@@ -80,18 +92,17 @@ spec:
         ports:
         - containerPort: 80
 #+end_src
-// Tangle - `,bt`
+
+- Tangle to create the .yaml file - `,bt`
 
 
 - See if the yaml file was created
 #+begin_src shell :results raw
   pwd
-ls -al /home/riaan/Project/ticket-writing |grep .yaml
+ ls -al /home/riaan/Project/ticket-writing |grep .yaml
 
-  #ls -al /home/ii/ticket-writing | grep yaml
+ #ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
-
-
 
 
 - Create a Namespace
@@ -100,27 +111,16 @@ kubectl create namespace app-deploy-tests
 #+end_src
 
 
-
-
 - Create a Deployment
 #+begin_src shell :results raw
 kubectl apply -f deployment_test.yaml --namespace=app-deploy-tests
 #+end_src
 
 
-
-
 ***  2. Find the deployment
 #+begin_src shell :results raw
   kubectl get deployments -A | grep app
 #+end_src
-
-#+RESULTS:
-#+begin_example
-app-deploy-tests     nginx-deployment         3/3     3            3           5m1s
-#+end_example
-
-
 
 
 *** 3. Scale the Deployment
@@ -132,15 +132,6 @@ app-deploy-tests     nginx-deployment         3/3     3            3           5
   kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-deployment.apps/nginx-deployment scaled
-app-deploy-tests     nginx-deployment         4/4     4            4           5m24s
-deployment "nginx-deployment" successfully rolled out
-#+end_example
-
-
-
 
 *** 4. Update the deployment:
 #+begin_src shell :results raw
@@ -148,14 +139,11 @@ kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=
 #+end_src
 
 
-
-
+- and update it again
 
 #+begin_src shell :results raw
 kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.1 --record
 #+end_src
-
-
 
 
 *** 5. Describe the deployments to see if it was updated with history
@@ -165,35 +153,28 @@ kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=
 #+end_src
 
 
-
-
 *** 6. Describe the status of the deployment
 #+begin_src shell :results raw
 kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
 
-
-
 *** 7. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
 
 #+begin_src shell :results raw
-//This command fail!
+#his command fail!
 kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec":{"progressDeadlineSeconds":60}}'
 #+end_src
 
-
-*** Cleanup
+*** 8. Cleanup
 
 
 - Delete the deployment and the namespace
-
 #+begin_src shell :results raw
-kubectl delete -f deployment_test.yaml
-kubectl delete --namespace deployment.v1.apps/nginx-deploymen
+  kubectl delete deploy/deployment.v1.apps/nginx-deployment
+  kubectl delete namespaces/app-deploy-tests
+
 #+end_src
-
-
 
 - Look for deployment and namespace to check if it is deleted
 
@@ -202,6 +183,7 @@ kubectl delete --namespace deployment.v1.apps/nginx-deploymen
   kubectl get deployment nginx-deployment
 #+end_src
 
+- ALL DONE!
 
 
 
@@ -219,6 +201,14 @@ order by endpoint
 limit 10;
 
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ endpoint | useragent
+----------+-----------
+(0 rows)
+
+#+end_SRC
 
 
 
@@ -342,6 +332,14 @@ List endpoints hit by the test:
 select * from testing.endpoint_hit_by_new_test;
 #+end_src
 
+#+RESULTS:
+#+begin_SRC example
+ useragent | endpoint | hit_by_ete | hit_by_new_test
+-----------+----------+------------+-----------------
+(0 rows)
+
+#+end_SRC
+
 Display endpoint coverage change:
   #+begin_src sql-mode :eval never-export :exports both :session none
     select * from testing.projected_change_in_coverage;
@@ -351,7 +349,7 @@ Display endpoint coverage change:
   #+begin_SRC example
      category    | total_endpoints | old_coverage | new_coverage | change_in_number
   ---------------+-----------------+--------------+--------------+------------------
-   test_coverage |             438 |          183 |          183 |                0
+   test_coverage |             862 |          343 |          343 |                0
   (1 row)
 
   #+end_SRC
