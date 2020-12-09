@@ -100,27 +100,34 @@ pwd
 ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
+#+RESULTS:
+#+begin_example
+/home/ii/ticket-writing
+-rw-r--r--  1 ii ii    435 Dec  9 13:20 deployment_test.yaml
+#+end_example
+
 
 Create a Namespace
 #+begin_src shell :results raw
-kubectl create namespace app-deploy-test
+kubectl create namespace app-deploy-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
-namespace/app-deploy-test created
+namespace/app-deploy-tests created
 #+end_example
+
 
 Create a Deployment
 #+begin_src shell :results raw
-
-kubectl apply -f deployment_test.yaml --namespace=app-deploy-test
+kubectl apply -f deployment_test.yaml --namespace=app-deploy-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
 deployment.apps/nginx-deployment created
 #+end_example
+
 
 ***  2. Find the deployment
 #+begin_src shell :results raw
@@ -129,93 +136,119 @@ deployment.apps/nginx-deployment created
 
 #+RESULTS:
 #+begin_example
-apisnoop          auditlogger                              1/1     1            1           4h26m
-app-deploy-test   nginx-deployment                         3/3     3            3           13s
-cert-manager      cert-manager                             1/1     1            1           4h29m
-cert-manager      cert-manager-cainjector                  1/1     1            1           4h29m
-cert-manager      cert-manager-webhook                     1/1     1            1           4h29m
-external-dns      external-dns                             1/1     1            1           4h27m
-kube-system       packet-cloud-controller-manager          1/1     1            1           4h29m
-metallb-system    controller                               1/1     1            1           4h27m
+app-deploy-test    nginx-deployment                         4/4     4            4           138m
+app-deploy-tests   nginx-deployment                         3/3     3            3           4s
 #+end_example
+
 
 
 *** 3. Scale the Deployment
 
 #+begin_src shell :results raw
-  kubectl scale deployment.v1.apps/nginx-deployment -n app-deploy-test --replicas=4
+  kubectl scale deployment.v1.apps/nginx-deployment -n app-deploy-tests --replicas=4
   sleep 5
   kubectl get deployments -A | grep app
-  kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-test
+  kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
 deployment.apps/nginx-deployment scaled
-app-deploy-test   nginx-deployment                         4/4     4            4           28m
+app-deploy-test    nginx-deployment                         4/4     4            4           138m
+app-deploy-tests   nginx-deployment                         4/4     4            4           27s
 deployment "nginx-deployment" successfully rolled out
 #+end_example
+
 
 
 *** 4. Update the deployment:
 #+begin_src shell :results raw
-kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-test nginx=nginx:1.16.0 --record
+kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.0 --record
 #+end_src
 
 #+RESULTS:
 #+begin_example
 deployment.apps/nginx-deployment image updated
 #+end_example
+
 
 
 #+begin_src shell :results raw
-kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-test nginx=nginx:1.16.1 --record
+kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.1 --record
 #+end_src
 
 #+RESULTS:
 #+begin_example
 deployment.apps/nginx-deployment image updated
 #+end_example
+
 
 *** 5. Describe the deployments to see if it was updated with history
 #+begin_src shell :results raw
-  kubectl describe deployments -n app-deploy-test | grep image
-  kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-test
+  kubectl describe deployments -n app-deploy-tests | grep image
+  kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
-                          kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-test --record=true
+                          kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-tests --record=true
 deployment.apps/nginx-deployment
 REVISION  CHANGE-CAUSE
 1         <none>
-3         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.0 --namespace=app-deploy-test --record=true
-4         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-test --record=true
+2         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.0 --namespace=app-deploy-tests --record=true
+3         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-tests --record=true
 
 #+end_example
+
 
 
 *** 6. Describe the status of the deployment
 #+begin_src shell :results raw
-kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-test
+kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
 deployment "nginx-deployment" successfully rolled out
 #+end_example
+
 
 
 *** 7. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
 
 #+begin_src shell :results raw
 //This command fail!
-kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-test '{"spec":{"progressDeadlineSeconds":60}}'
+kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec":{"progressDeadlineSeconds":60}}'
 #+end_src
 
 #+RESULTS:
 #+begin_example
 #+end_example
+
+
+
+*** Test to see is new endpoint was hit by the test
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct  endpoint, useragent
+from testing.audit_event
+where endpoint ilike '%Deployment%'
+and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+and useragent like 'e2e%'
+order by endpoint
+limit 10;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ endpoint | useragent
+----------+-----------
+(0 rows)
+
+#+end_SRC
+
+
+
 
 
 
