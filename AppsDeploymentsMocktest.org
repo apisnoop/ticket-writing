@@ -36,17 +36,6 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       limit 25;
   #+end_src
 
-  #+RESULTS: untested_stable_core_endpoints
-  #+begin_SRC example
-                  endpoint                 |    kind
-  -----------------------------------------+------------
-   replaceAppsV1NamespacedDeploymentStatus | Deployment
-   replaceAppsV1NamespacedDeploymentScale  | Scale
-   readAppsV1NamespacedDeploymentScale     | Scale
-   patchAppsV1NamespacedDeploymentScale    | Scale
-  (4 rows)
-
-  #+end_SRC
 
 
 
@@ -96,15 +85,13 @@ spec:
 
 - See if the yaml file was created
 #+begin_src shell :results raw
-pwd
-ls -al /home/ii/ticket-writing | grep yaml
+  pwd
+ls -al /home/riaan/Project/ticket-writing |grep .yaml
+
+  #ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
-#+RESULTS:
-#+begin_example
-/home/ii/ticket-writing
--rw-r--r--  1 ii ii    435 Dec  9 13:20 deployment_test.yaml
-#+end_example
+
 
 
 - Create a Namespace
@@ -112,10 +99,7 @@ ls -al /home/ii/ticket-writing | grep yaml
 kubectl create namespace app-deploy-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-namespace/app-deploy-tests created
-#+end_example
+
 
 
 - Create a Deployment
@@ -123,10 +107,7 @@ namespace/app-deploy-tests created
 kubectl apply -f deployment_test.yaml --namespace=app-deploy-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-deployment.apps/nginx-deployment created
-#+end_example
+
 
 
 ***  2. Find the deployment
@@ -136,9 +117,9 @@ deployment.apps/nginx-deployment created
 
 #+RESULTS:
 #+begin_example
-app-deploy-test    nginx-deployment                         4/4     4            4           138m
-app-deploy-tests   nginx-deployment                         3/3     3            3           4s
+app-deploy-tests     nginx-deployment         3/3     3            3           5m1s
 #+end_example
+
 
 
 
@@ -154,10 +135,10 @@ app-deploy-tests   nginx-deployment                         3/3     3           
 #+RESULTS:
 #+begin_example
 deployment.apps/nginx-deployment scaled
-app-deploy-test    nginx-deployment                         4/4     4            4           138m
-app-deploy-tests   nginx-deployment                         4/4     4            4           27s
+app-deploy-tests     nginx-deployment         4/4     4            4           5m24s
 deployment "nginx-deployment" successfully rolled out
 #+end_example
+
 
 
 
@@ -166,10 +147,7 @@ deployment "nginx-deployment" successfully rolled out
 kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.0 --record
 #+end_src
 
-#+RESULTS:
-#+begin_example
-deployment.apps/nginx-deployment image updated
-#+end_example
+
 
 
 
@@ -177,10 +155,7 @@ deployment.apps/nginx-deployment image updated
 kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.1 --record
 #+end_src
 
-#+RESULTS:
-#+begin_example
-deployment.apps/nginx-deployment image updated
-#+end_example
+
 
 
 *** 5. Describe the deployments to see if it was updated with history
@@ -189,16 +164,6 @@ deployment.apps/nginx-deployment image updated
   kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-                          kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-tests --record=true
-deployment.apps/nginx-deployment
-REVISION  CHANGE-CAUSE
-1         <none>
-2         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.0 --namespace=app-deploy-tests --record=true
-3         kubectl set image deployment.v1.apps/nginx-deployment nginx=nginx:1.16.1 --namespace=app-deploy-tests --record=true
-
-#+end_example
 
 
 
@@ -207,10 +172,6 @@ REVISION  CHANGE-CAUSE
 kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-deployment "nginx-deployment" successfully rolled out
-#+end_example
 
 
 
@@ -221,9 +182,6 @@ deployment "nginx-deployment" successfully rolled out
 kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec":{"progressDeadlineSeconds":60}}'
 #+end_src
 
-#+RESULTS:
-#+begin_example
-#+end_example
 
 *** Cleanup
 
@@ -231,8 +189,10 @@ kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec
 - Delete the deployment and the namespace
 
 #+begin_src shell :results raw
-kubectl delete deploy/nginx-deployment namespace/
+kubectl delete -f deployment_test.yaml
+kubectl delete --namespace deployment.v1.apps/nginx-deploymen
 #+end_src
+
 
 
 - Look for deployment and namespace to check if it is deleted
@@ -241,6 +201,7 @@ kubectl delete deploy/nginx-deployment namespace/
   kubectl get namespace app-deploy-tests
   kubectl get deployment nginx-deployment
 #+end_src
+
 
 
 
@@ -259,13 +220,6 @@ limit 10;
 
 #+end_src
 
-#+RESULTS:
-#+begin_SRC example
- endpoint | useragent
-----------+-----------
-(0 rows)
-
-#+end_SRC
 
 
 
