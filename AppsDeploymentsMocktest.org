@@ -52,6 +52,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 
 
+
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]]
@@ -60,7 +61,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#scale][Scale]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#patch][kubectl-commands#patch]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#replace][kubectl-commands#replace]]
-
+- [[https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment][Scaling a deployment Kubectl commands]]
 * The mock test                                                      :export:
 ** Test outline
 
@@ -68,11 +69,63 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 *** 1. Create a deployment yaml file, namespace and Deployment
 
+#+begin_src yaml :tangle deployment_test.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+#+end_src
+
+- Tangle to create the .yaml file - `,bt`
+
+
+- See if the yaml file was created
+#+begin_src shell :results raw
+  pwd
+ ls -al /home/riaan/Project/ticket-writing |grep .yaml
+
+ #ls -al /home/ii/ticket-writing | grep yaml
+#+end_src
+
+
+
+
+
+- Create a Namespace
+#+begin_src shell :results raw
+kubectl create namespace app-deploy-tests
+#+end_src
+
+
+- Create a Deployment
+#+begin_src shell :results raw
+kubectl apply -f deployment_test.yaml --namespace=app-deploy-tests
+#+end_src
+
+
 
 ***  2. Find the deployment
 #+begin_src shell :results raw
   kubectl get deployments -A | grep app
 #+end_src
+
 
 
 *** 3. Scale the Deployment
@@ -85,10 +138,15 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 #+end_src
 
 
+
+
 *** 4. Update the deployment:
 #+begin_src shell :results raw
 kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.0 --record
 #+end_src
+
+
+
 
 
 - and update it agaian, because we can...
@@ -98,11 +156,13 @@ kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=
 #+end_src
 
 
+
 *** 5. Describe the deployments to see if it was updated with history
 #+begin_src shell :results raw
   kubectl describe deployments -n app-deploy-tests | grep image
   kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
+
 
 
 *** 6. Describe the status of the deployment
@@ -111,17 +171,14 @@ kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
 
+
 *** 7. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
 
 #+begin_src shell :results raw
-#his command fail!
+#This command fail!
 kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec":{"progressDeadlineSeconds":60}}'
 #+end_src
 
-
-#+RESULTS:
-#+begin_example
-#+end_example
 
 
 
@@ -135,12 +192,15 @@ kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec
 
 #+end_src
 
+
+
 - Look for deployment and namespace to check if it is deleted
 
 #+begin_src shell :results raw
   kubectl get namespace app-deploy-tests
   kubectl get deployment nginx-deployment
 #+end_src
+
 
 - ALL DONE!
 
@@ -153,6 +213,16 @@ kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec
 select count(*) from testing.audit_event;
 #+end_src
 
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 14773
+(1 row)
+
+#+end_SRC
+
+
 
 - Delete all audit events
 #+begin_src sql-mode
@@ -161,8 +231,9 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
-DELETE 806800
+DELETE 15973
 #+end_SRC
+
 
 
 
@@ -172,7 +243,7 @@ DELETE 806800
                    -- to_char(to_timestamp(release_date::bigint), ' HH:MI') as time
   from testing.audit_event
   where endpoint ilike '%Deployment%'
-  -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+    -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
   and useragent like 'kubectl%'
   order by endpoint
   limit 100;
@@ -181,16 +252,38 @@ DELETE 806800
 
 #+RESULTS:
 #+begin_SRC example
- endpoint | useragent
-----------+-----------
-(0 rows)
+               endpoint               |                    useragent
+--------------------------------------+--------------------------------------------------
+ createAppsV1NamespacedDeployment     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1DeploymentForAllNamespaces | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1NamespacedDeployment       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ patchAppsV1NamespacedDeployment      | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ patchAppsV1NamespacedDeploymentScale | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ readAppsV1NamespacedDeployment       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+(6 rows)
 
 #+end_SRC
 
+*** About Scale enpoints
 
+- The file [[https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/client-go/kubernetes/typed/apps/v1/deployment.go#L186-L228][deployment.go]] have three code sections that deal with scale endpoint replace-, read- and patchAppsV1NamespacedDeploymentScale.
+  However neither of these tests blocks touch the endpoint
 
+  The [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/statefulset.go#L848-L872][statefulsets.go]] file contain test similar scale endpoint for relace and read which make these endpoint conformance tested.
 
+  If the statefulsets file could be used as a temple it could be applied to the deployment endpoint. The Patch --Deploymentscale endpoint was touch with a simple kubeclt command
+  The same logic could then be applied to the Patch -- statefulsetsScale endpoint in another test.
 
+**Patch**
+ StatefulSet
+ HTTP Request
+ PATCH /apis/apps/v1/namespaces/{namespace}/statefulsets/{name}
+
+ Deployment
+ HTTP Request
+ PATCH /apis/apps/v1/namespaces/{namespace}/deployments/{name}
+
+ Patch for both statefulsets and deployments use the same HTTP Request logic
 
 
 ** Test the functionality in Go
