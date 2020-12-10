@@ -68,62 +68,6 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 *** 1. Create a deployment yaml file, namespace and Deployment
 
-**** Questions:
-- In the Golang test setting  ~  config.UserAgent = "live-test-writing" ~
-- What user agent is operating when doing kubeclt commands?
-- How can these the kubeclt results be seen in APISnoop?
-- Can the useragent be configured for kubeclt commands?
-
-
-
-- Create deployment yaml file:
-#+begin_src yaml :tangle deployment_test.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-  labels:
-    app: nginx
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1.14.2
-        ports:
-        - containerPort: 80
-#+end_src
-
-- Tangle to create the .yaml file - `,bt`
-
-
-- See if the yaml file was created
-#+begin_src shell :results raw
-  pwd
- ls -al /home/riaan/Project/ticket-writing |grep .yaml
-
- #ls -al /home/ii/ticket-writing | grep yaml
-#+end_src
-
-
-- Create a Namespace
-#+begin_src shell :results raw
-kubectl create namespace app-deploy-tests
-#+end_src
-
-
-- Create a Deployment
-#+begin_src shell :results raw
-kubectl apply -f deployment_test.yaml --namespace=app-deploy-tests
-#+end_src
-
 
 ***  2. Find the deployment
 #+begin_src shell :results raw
@@ -174,6 +118,13 @@ kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec":{"progressDeadlineSeconds":60}}'
 #+end_src
 
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+
+
 *** 8. Cleanup
 
 
@@ -193,6 +144,9 @@ kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec
 
 - ALL DONE!
 
+
+
+*** Delete audit events to check for success
 
 - Count all audit events
 #+begin_src sql-mode
