@@ -1,5 +1,5 @@
 # -*- ii: apisnoop; -*-
-#+TITLE: StatefulSets Apps endpoints
+#+TITLE: Replicasets Apps endpoints
 #+AUTHOR: ii team
 #+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
 #+OPTIONS: toc:nil tags:nil todo:nil
@@ -30,7 +30,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       kind
       FROM testing.untested_stable_endpoint
       where eligible is true
-        and endpoint like '%StatefulSet%'
+        and endpoint like '%ReplicaSet%'
       --and category = 'core'
       order by kind, endpoint desc
       limit 25;
@@ -38,16 +38,18 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
   #+RESULTS: untested_stable_core_endpoints
   #+begin_SRC example
-                    endpoint                   |    kind
-  ---------------------------------------------+-------------
-   patchAppsV1NamespacedStatefulSetScale       | Scale
-   replaceAppsV1NamespacedStatefulSetStatus    | StatefulSet
-   readAppsV1NamespacedStatefulSetStatus       | StatefulSet
-   patchAppsV1NamespacedStatefulSetStatus      | StatefulSet
-   patchAppsV1NamespacedStatefulSet            | StatefulSet
-   listAppsV1StatefulSetForAllNamespaces       | StatefulSet
-   deleteAppsV1CollectionNamespacedStatefulSet | StatefulSet
-  (7 rows)
+                    endpoint                  |    kind
+  --------------------------------------------+------------
+   replaceAppsV1NamespacedReplicaSetStatus    | ReplicaSet
+   readAppsV1NamespacedReplicaSetStatus       | ReplicaSet
+   patchAppsV1NamespacedReplicaSetStatus      | ReplicaSet
+   patchAppsV1NamespacedReplicaSet            | ReplicaSet
+   listAppsV1ReplicaSetForAllNamespaces       | ReplicaSet
+   deleteAppsV1CollectionNamespacedReplicaSet | ReplicaSet
+   replaceAppsV1NamespacedReplicaSetScale     | Scale
+   readAppsV1NamespacedReplicaSetScale        | Scale
+   patchAppsV1NamespacedReplicaSetScale       | Scale
+  (9 rows)
 
   #+end_SRC
 
@@ -55,74 +57,48 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 
 
+
 * API Reference and feature documentation                            :export:
-- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]]
 
 - [[https://kubernetes.io/docs/reference/kubectl/cheatsheet/#updating-resources][kubeclt scale / updating resources]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#scale][Scale]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#patch][kubectl-commands#patch]]
 - [[https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#replace][kubectl-commands#replace]]
-- [[https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/][StatefulSet]]
+- [[https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment][Scaling a deployment Kubectl commands]]
 * The mock test                                                      :export:
 ** Test outline
 
 
 
-*** 1. Create a Statefulset yaml file, namespace and Deployment
+*** 1. Create a replicaset yaml file, namespace and replicaset
 
-
-#+begin_src yaml :tangle statefulset_test.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx
-  labels:
-    app: nginx
-spec:
-  ports:
-  - port: 80
-    name: web
-  clusterIP: None
-  selector:
-    app: nginx
----
+#+begin_src yaml :tangle replicaset_test.yaml
 apiVersion: apps/v1
-kind: StatefulSet
+kind: ReplicaSet
 metadata:
-  name: web
+  name: frontend
+  labels:
+    app: guestbook
+    tier: frontend
 spec:
+  # modify replicas according to your case
+  replicas: 3
   selector:
     matchLabels:
-      app: nginx # has to match .spec.template.metadata.labels
-  serviceName: "nginx"
-  replicas: 3 # by default is 1
+      tier: frontend
   template:
     metadata:
       labels:
-        app: nginx # has to match .spec.selector.matchLabels
+        tier: frontend
     spec:
-      terminationGracePeriodSeconds: 10
       containers:
-      - name: nginx
-        image: k8s.gcr.io/nginx-slim:0.8
-        ports:
-        - containerPort: 80
-          name: web
-        volumeMounts:
-        - name: www
-          mountPath: /usr/share/nginx/html
-  volumeClaimTemplates:
-  - metadata:
-      name: www
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "my-storage-class"
-      resources:
-        requests:
-          storage: 1Gi
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
 
 #+end_src
+
 - Tangle to create the .yaml file - `,bt`
 
 
@@ -138,6 +114,7 @@ spec:
 #+begin_example
 /home/riaan/Project/ticket-writing
 -rw-rw-r--  1 riaan riaan    404 Dec 11 06:39 deployment_test.yaml
+-rw-rw-r--  1 riaan riaan    455 Dec 11 10:28 replicaset_test.yaml
 -rw-rw-r--  1 riaan riaan   1029 Dec 11 06:39 statefulset_test.yaml
 #+end_example
 
@@ -147,84 +124,73 @@ spec:
 
 - Create a Namespace
 #+begin_src shell :results raw
-kubectl create namespace app-statefulset-tests
+kubectl create namespace app-replicaset-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
-namespace/app-statefulset-tests created
+namespace/app-replicaset-tests created
 #+end_example
 
 
-
-
-
-
-- Create a Deployment
+- Create a replicaset
 #+begin_src shell :results raw
-kubectl apply -f statefulset_test.yaml --namespace=app-statefulset-tests
+kubectl apply -f replicaset_test.yaml --namespace=app-replicaset-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
-service/nginx created
-statefulset.apps/web created
+replicaset.apps/frontend created
 #+end_example
 
 
 
-
-
-
-***  2. Find the statefulset
+***  2. Find the replicaset
 #+begin_src shell :results raw
-  kubectl get statefulset -A | grep web
+  kubectl get replicaset -A | grep app
 #+end_src
 
 #+RESULTS:
 #+begin_example
-app-statefulset-tests   web    0/3     79m
+app-replicaset-tests   frontend                            10        10        10      21m
 #+end_example
 
+WIP - Updated the file to this points for replicaset test, copied form deployment test
 
-
-WIP- Still to convert below this point
-
-*** 3. Scale the Statefulset
+*** 3. Scale the results
 
 #+begin_src shell :results raw
-  kubectl scale statfulsets web -n app-statefulset-tests --replicas=4
+  kubectl scale --replicas=4 rs/frontend -n app-replicaset-tests
   sleep 5
-  kubectl get statefulset -A | grep web
-  kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
+ kubectl get replicas -A | grep app
+ kubectl rollout status frontend -n app-replicaset-tests
 #+end_src
 
-kubectl scale sts web --replicas=5
+#+RESULTS:
+#+begin_example
+#+end_example
 
 
-*** 4. Update the deployment:
+
+*** 4. Update the replicaset: NOT WORKING
 #+begin_src shell :results raw
-kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.0 --record
+kubectl set image frontend -n app-replicaset-tests app=guestbooks --record
 #+end_src
 
+#+RESULTS:
+#+begin_example
+#+end_example
 
 
-
-- and update it agaian, because we can...
-
+*** 5. Describe the replicaset to see if it was updated with history - NOT WORKING
 #+begin_src shell :results raw
-kubectl set image deployment.v1.apps/nginx-deployment -n app-deploy-tests nginx=nginx:1.16.1 --record
+  kubectl describe replicas -n app-replicaset-tests | grep image
+  kubectl rollout history frontend -n app-replicaset-tests
 #+end_src
 
-
-
-
-*** 5. Describe the deployments to see if it was updated with history
-#+begin_src shell :results raw
-  kubectl describe deployments -n app-deploy-tests | grep image
-  kubectl rollout history deployment.v1.apps/nginx-deployment -n app-deploy-tests
-#+end_src
-
+#+RESULTS:
+#+begin_example
+#+end_example
 
 
 
@@ -236,31 +202,15 @@ kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 
 
 
-*** 7. The following kubectl command sets the spec with progressDeadlineSeconds to make the controller report lack of progress for a Deployment after 1 minute:
-
-#+begin_src shell :results raw
-#This command fail!
-kubectl patch deployment.v1.apps/nginx-deployment -p -n app-deploy-tests '{"spec":{"progressDeadlineSeconds":60}}'
-#+end_src
-
-
-
-
-
-*** 8. Cleanup
+*** 7. Cleanup
 
 
 - Delete the deployment and the namespace
 #+begin_src shell :results raw
-  kubectl delete statefulset web
-  kubectl delete namespaces/app-statefulset-tests
+  kubectl delete deploy/deployment.v1.apps/nginx-deployment
+  kubectl delete namespaces/app-deploy-tests
 
 #+end_src
-
-#+RESULTS:
-#+begin_example
-namespace "app-statefulset-tests" deleted
-#+end_example
 
 
 
@@ -270,6 +220,7 @@ namespace "app-statefulset-tests" deleted
   kubectl get namespace app-deploy-tests
   kubectl get deployment nginx-deployment
 #+end_src
+
 
 - ALL DONE!
 
@@ -282,12 +233,26 @@ namespace "app-statefulset-tests" deleted
 select count(*) from testing.audit_event;
 #+end_src
 
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+ 14773
+(1 row)
+
+#+end_SRC
+
 
 
 - Delete all audit events
 #+begin_src sql-mode
 delete from testing.audit_event;
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 15973
+#+end_SRC
 
 
 
@@ -297,7 +262,7 @@ delete from testing.audit_event;
   select distinct  endpoint, useragent
                    -- to_char(to_timestamp(release_date::bigint), ' HH:MI') as time
   from testing.audit_event
-  where endpoint ilike '%Deployment%'
+  where endpoint ilike '%ReplicaSet%'
     -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
   and useragent like 'kubectl%'
   order by endpoint
@@ -307,9 +272,13 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
- endpoint | useragent
-----------+-----------
-(0 rows)
+               endpoint               |                    useragent
+--------------------------------------+--------------------------------------------------
+ createAppsV1NamespacedReplicaSet     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1NamespacedReplicaSet       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1ReplicaSetForAllNamespaces | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ readAppsV1NamespacedReplicaSet       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+(4 rows)
 
 #+end_SRC
 
@@ -372,21 +341,55 @@ delete from testing.audit_event;
        // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
        // TEST BEGINS HERE
-       ss := e2estatefulset.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, labels)
 
+       testPodName := "test-pod"
+       testPodImage := "nginx"
+       testNamespaceName := "default"
 
+       fmt.Println("creating a Pod")
+       testPod := v1.Pod{
+         ObjectMeta: metav1.ObjectMeta{
+           Name: testPodName,
+           Labels: map[string]string{"test-pod-static": "true"},
+         },
+         Spec: v1.PodSpec{
+           Containers: []v1.Container{{
+             Name: testPodName,
+             Image: testPodImage,
+           }},
+         },
+       }
+       _, err = ClientSet.CoreV1().Pods(testNamespaceName).Create(context.TODO(), &testPod, metav1.CreateOptions{})
+       if err != nil {
+           fmt.Println(err, "failed to create Pod")
+           return
+       }
 
+       fmt.Println("listing Pods")
+       pods, err := ClientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "test-pod-static=true"})
+       if err != nil {
+           fmt.Println(err, "failed to list Pods")
+           return
+       }
+       podCount := len(pods.Items)
+       if podCount == 0 {
+           fmt.Println("there are no Pods found")
+           return
+       }
+       fmt.Println(podCount, "Pod(s) found")
 
+       fmt.Println("deleting Pod")
+       err = ClientSet.CoreV1().Pods(testNamespaceName).Delete(context.TODO(), testPodName, metav1.DeleteOptions{})
+       if err != nil {
+           fmt.Println(err, "failed to delete the Pod")
+           return
+       }
 
        // TEST ENDS HERE
 
        fmt.Println("[status] complete")
 
      }
-   #+end_src
-
-   #+RESULTS: Mock Test In Go
-   #+begin_src go
    #+end_src
 
    #+RESULTS:
