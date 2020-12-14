@@ -338,71 +338,78 @@ delete from testing.audit_event;
 ** Test the functionality in Go
    #+NAME: Mock Test In Go
    #+begin_src go
-        package main
+             package main
 
-        import (
-          // "encoding/json"
-          "fmt"
-         // "context"
-          "flag"
-          "os"
-         // v1 "k8s.io/api/core/v1"
-          // "k8s.io/client-go/dynamic"
-          // "k8s.io/apimachinery/pkg/runtime/schema"
-          //metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-          "k8s.io/client-go/kubernetes"
-          // "k8s.io/apimachinery/pkg/types"
-          "k8s.io/client-go/tools/clientcmd"
-           e2estatefulset "k8s.io/kubernetes/test/e2e/framework/statefulset"
-     )
+             import (
+               // "encoding/json"
+               "fmt"
+              // "context"
+               "flag"
+               "os"
+              // v1 "k8s.io/api/core/v1"
+               // "k8s.io/client-go/dynamic"
+               // "k8s.io/apimachinery/pkg/runtime/schema"
+               //metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+               "k8s.io/client-go/kubernetes"
+               // "k8s.io/apimachinery/pkg/types"
+               "k8s.io/client-go/tools/clientcmd"
+                e2estatefulset "k8s.io/kubernetes/test/e2e/framework/statefulset"
+          )
 
-        func main() {
-          // uses the current context in kubeconfig
-          kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-          flag.Parse()
-          config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-          if err != nil {
-              fmt.Println(err, "Could not build config from flags")
-              return
-          }
-          // make our work easier to find in the audit_event queries
-          config.UserAgent = "live-test-writing"
-          // creates the clientset
-          ClientSet, _ := kubernetes.NewForConfig(config)
-          // DynamicClientSet, _ := dynamic.NewForConfig(config)
-          // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+             func main() {
+               // uses the current context in kubeconfig
+               kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+               flag.Parse()
+               config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+               if err != nil {
+                   fmt.Println(err, "Could not build config from flags")
+                   return
+               }
+               // make our work easier to find in the audit_event queries
+               config.UserAgent = "live-test-writing"
+               // creates the clientset
+               ClientSet, _ := kubernetes.NewForConfig(config)
+               // DynamicClientSet, _ := dynamic.NewForConfig(config)
+               // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
-          // TEST BEGINS HERE
-           ssName := "ss"
-		       labels := map[string]string{
-		       	"foo": "bar",
-			      "baz": "blah",
-          headlessSvcName := "test"
+               // TEST BEGINS HERE
+                ssName := "ss"
+                labels := map[string]string{
+                 "foo": "bar",
+                 "baz": "blah",
+               headlessSvcName := "test"
 
 
-         ss := e2estatefulset.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, labels)
-
-       // helper function to inspect various interfaces
-       func inspect(level int, name string, i interface{}) {
-         fmt.Printf("Inspecting: %s\n", name)
-         fmt.Printf("Inspect level: %d   Type: %T\n", level, i)
-         switch level {
-         case 1:
-            fmt.Printf("%+v\n\n", i)
-         case 2:
-           fmt.Printf("%#v\n\n", i)
-         default:
-           fmt.Printf("%v\n\n", i)
-  }
-}
+              ss := e2estatefulset.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, labels)
+              setHTTPProbe(ss)
+               ss, err := c.AppsV1().StatefulSets(ns).Create(context.TODO(), ss, metav1.CreateOptions{})
+              ExpectNoError(err, "failed to create pod")
+              e2estatefulset.WaitForRunningAndReady(c, *ss.Spec.Replicas, ss)
+			        waitForStatus(c, ss)
 
 
 
-          // TEST ENDS HERE
+      // helper function to inspect various interfaces
+            func inspect(level int, name string, i interface{}) {
+              fmt.Printf("Inspecting: %s\n", name)
+              fmt.Printf("Inspect level: %d   Type: %T\n", level, i)
+              switch level {
+              case 1:
+                 fmt.Printf("%+v\n\n", i)
+              case 2:
+                fmt.Printf("%#v\n\n", i)
+              default:
+                fmt.Printf("%v\n\n", i)
+       }
+     }
 
-          fmt.Println("[status] complete")
 
-        }
+
+               // TEST ENDS HERE
+
+               fmt.Println("[status] complete")
+
+             }
    #+end_src
 
    #+RESULTS: Mock Test In Go
