@@ -404,7 +404,6 @@ delete from testing.audit_event;
      }
 
 
-
                // TEST ENDS HERE
 
                fmt.Println("[status] complete")
