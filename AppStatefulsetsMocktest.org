@@ -282,12 +282,26 @@ namespace "app-statefulset-tests" deleted
 select count(*) from testing.audit_event;
 #+end_src
 
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+  1503
+(1 row)
+
+#+end_SRC
+
 
 
 - Delete all audit events
 #+begin_src sql-mode
 delete from testing.audit_event;
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 2228333
+#+end_SRC
 
 
 
@@ -335,7 +349,7 @@ delete from testing.audit_event;
  Patch for both statefulsets and deployments use the same HTTP Request logic
 
 
-** Test the functionality in Go
+** Test the functionality in Go - AS IS IN statefulSet.go test
    #+NAME: Mock Test In Go
    #+begin_src go
              package main
@@ -387,6 +401,36 @@ delete from testing.audit_event;
               e2estatefulset.WaitForRunningAndReady(c, *ss.Spec.Replicas, ss)
 			        waitForStatus(c, ss)
 
+              framework.ExpectEqual(*(ss.Spec.Replicas), int32(2))
+                })
+        })
+
+
+               scale, err := c.AppsV1().StatefulSets(ns).GetScale(context.TODO(), ssName, metav1.GetOptions{})                                         
+               if err != nil {                                                                                                                         
+                       framework.Failf("Failed to get scale subresource: %v", err)
+               }
+               framework.ExpectEqual(scale.Spec.Replicas, int32(1))
+               framework.ExpectEqual(scale.Status.Replicas, int32(1))
+
+               scale.ResourceVersion = "" // indicate the scale update should be unconditional
+               scale.Spec.Replicas = 2
+               scaleResult, err := c.AppsV1().StatefulSets(ns).UpdateScale(context.TODO(), ssName, scale, metav1.UpdateOptions{})
+               if err != nil {
+                       framework.Failf("Failed to put scale subresource: %v", err)
+               }
+               framework.ExpectEqual(scaleResult.Spec.Replicas, int32(2))
+
+               ss, err = c.AppsV1().StatefulSets(ns).Get(context.TODO(), ssName, metav1.GetOptions{})
+               if err != nil {
+                       framework.Failf("Failed to get statefulset resource: %v", err)
+               }
+  
+
+		})
+	})
+
+
 
 
       // helper function to inspect various interfaces
@@ -415,14 +459,145 @@ delete from testing.audit_event;
    #+begin_src go
    #+end_src
 
-   #+RESULTS:
-   #+begin_example
-   creating a Pod
-   listing Pods
-   1 Pod(s) found
-   deleting Pod
-   [status] complete
-   #+end_example
+
+
+
+
+
+
+
+
+** Test the functionality in Go - As updated by Riaankl accoding to rc.go example for Patch ---Scale
+   #+NAME: Mock Test In Go
+   #+begin_src go
+             package main
+
+             import (
+               "encoding/json"
+               "fmt"
+              // "context"
+               "flag"
+               "os"
+              // v1 "k8s.io/api/core/v1"
+               "k8s.io/client-go/dynamic"
+               // "k8s.io/apimachinery/pkg/runtime/schema"
+               //metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+               "k8s.io/client-go/kubernetes"
+               // "k8s.io/apimachinery/pkg/types"
+               "k8s.io/client-go/tools/clientcmd"
+                e2estatefulset "k8s.io/kubernetes/test/e2e/framework/statefulset"
+          )
+
+             func main() {
+               // uses the current context in kubeconfig
+               kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+               flag.Parse()
+               config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+               if err != nil {
+                   fmt.Println(err, "Could not build config from flags")
+                   return
+               }
+               // make our work easier to find in the audit_event queries
+               config.UserAgent = "live-test-writing"
+               // creates the clientset
+               ClientSet, _ := kubernetes.NewForConfig(config)
+               // DynamicClientSet, _ := dynamic.NewForConfig(config)
+               // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
+               // TEST BEGINS HERE
+                ssName := "ss"
+                labels := map[string]string{
+                 "foo": "bar",
+                 "baz": "blah",
+               headlessSvcName := "test"
+
+
+                       ss := e2estatefulset.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, labels)
+                       setHTTPProbe(ss)
+                       ss, err := c.AppsV1().StatefulSets(ns).Create(context.TODO(), ss, metav1.CreateOptions{})
+                       framework.ExpectNoError(err)
+                       e2estatefulset.WaitForRunningAndReady(c, *ss.Spec.Replicas, ss)
+                       waitForStatus(c, ss)
+
+                       scale, err := c.AppsV1().StatefulSets(ns).GetScale(context.TODO(), ssName, metav1.GetOptions{})                                                                             
+                       framework.Logf("scale: %#v", scale)                                                                                                                                         
+                       framework.Logf("err: %+v", err)                                                                                                                                             
+                       if err != nil {                                                                                                                                                             
+                               framework.Failf("Failed to get scale subresource: %v", err)
+                       }
+                       framework.ExpectEqual(scale.Spec.Replicas, int32(1))
+                       framework.ExpectEqual(scale.Status.Replicas, int32(1))
+                       ginkgo.By("updating a scale subresource")
+                       scale.ResourceVersion = "" // indicate the scale update should be unconditional
+                       scale.Spec.Replicas = 2
+                       ssScalePatchPayload, err := json.Marshal(autoscalingv1.Scale{
+                               Spec: autoscalingv1.ScaleSpec{
+                                       Replicas: scale.Spec.Replicas,
+                               },
+                       })
+                       scaleResult, err := c.AppsV1().StatefulSets(ns).Patch (context.TODO(), ssName, types.StrategicMergePatchType, []byte(ssScalePatchPayload), metav1.PatchOptions{}, "scale")
+                       framework.Logf("scaleResult: %#v", scaleResult)
+                       framework.Logf("err: %#v", err)
+                       x := scaleResult.Status.ReadyReplicas
+                       framework.Logf("ReadyReplicas: %#v", x)
+                       if err != nil {
+                               framework.Failf("Failed to put scale subresource: %v", err)
+                       }
+                       framework.ExpectEqual(scaleResult.Spec.Replicas, int32(2))
+
+                       ss, err = c.AppsV1().StatefulSets(ns).Get(context.TODO(), ssName, metav1.GetOptions{})                                                                                      
+                       if err != nil {                                                                                                                                                             
+                               framework.Failf("Failed to get statefulset resource: %v", err)                                                                                                      
+                       }                                                                                                                                                                           
+                       framework.ExpectEqual(*(ss.Spec.Replicas), int32(0))                                                                                                                        
+               })                                                                                                                                                                                  
+       })                                                                                                                                                                                          
+                                                                                                                                                                                                   
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      // helper function to inspect various interfaces
+            func inspect(level int, name string, i interface{}) {
+              fmt.Printf("Inspecting: %s\n", name)
+              fmt.Printf("Inspect level: %d   Type: %T\n", level, i)
+              switch level {
+              case 1:
+                 fmt.Printf("%+v\n\n", i)
+              case 2:
+                fmt.Printf("%#v\n\n", i)
+              default:
+                fmt.Printf("%v\n\n", i)
+       }
+     }
+
+
+               // TEST ENDS HERE
+
+               fmt.Println("[status] complete")
+
+             }
+   #+end_src
+
+   #+RESULTS: Mock Test In Go
+   #+begin_src go
+   #+end_src
+
+
+
+
+
 
 * Verifying increase in coverage with APISnoop                       :export:
 Discover useragents:
@@ -465,6 +640,59 @@ Display endpoint coverage change:
 
   #+end_SRC
 
+
+
+
+#+begin_src sql-mode :exports both :session none
+  select distinct  endpoint, right(useragent,73) AS useragent
+  from testing.audit_event
+   where useragent ilike '%scale subresource2%'
+   -- where endpoint ilike '%AppsV1NamespacedStatefulSet%'
+   and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+  and useragent like 'e2e%'
+  order by endpoint
+  limit 30;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                 endpoint                  |                                 useragent
+-------------------------------------------+---------------------------------------------------------------------------
+ connectCoreV1GetNodeProxyWithPath         | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ createAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ createCoreV1Namespace                     | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ createCoreV1NamespacedPod                 | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ createCoreV1NamespacedService             | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ deleteAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ deleteCoreV1Namespace                     | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listCoreV1NamespacedEvent                 | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listCoreV1NamespacedPersistentVolumeClaim | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listCoreV1NamespacedPod                   | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listCoreV1NamespacedServiceAccount        | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listCoreV1Node                            | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listCoreV1PersistentVolume                | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ listPolicyV1beta1PodSecurityPolicy        | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ patchAppsV1NamespacedStatefulSetScale     | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ readAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ readAppsV1NamespacedStatefulSetScale      | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ readCoreV1Node                            | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+ replaceAppsV1NamespacedStatefulSet        | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+                                           | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
+(21 rows)
+
+#+end_SRC
+
+
+
+
+
+
+
+
+
+
 * Convert to Ginkgo Test
 ** Ginkgo Test
   :PROPERTIES:
@@ -500,3 +728,34 @@ CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
    ORDER BY hit desc
             ;
 #+END_SRC
+
+#+begin_src sql-mode :exports both :session none
+  select distinct  endpoint, left(useragent,93) AS useragent
+  -- select distinct  endpoint, right(useragent,73) AS useragent
+  from testing.audit_event
+   where useragent ilike '%kubectl%'
+   -- where endpoint ilike '%AppsV1NamespacedStatefulSet%'
+   -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+   -- and useragent like 'e2e%'
+  order by endpoint
+  limit 10;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint                   |                    useragent
+---------------------------------------------+--------------------------------------------------
+ createCoreV1Namespace                       | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getAdmissionregistrationV1APIResources      | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getAdmissionregistrationV1beta1APIResources | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getApiextensionsV1APIResources              | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getApiextensionsV1beta1APIResources         | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getApiregistrationV1APIResources            | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getApiregistrationV1beta1APIResources       | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getAPIVersions                              | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getAppsV1APIResources                       | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+ getAuthenticationV1APIResources             | kubectl/v1.19.0 (linux/amd64) kubernetes/e199641
+(10 rows)
+
+#+end_SRC
