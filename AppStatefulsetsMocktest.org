@@ -646,9 +646,9 @@ Display endpoint coverage change:
 #+begin_src sql-mode :exports both :session none
   select distinct  endpoint, right(useragent,73) AS useragent
   from testing.audit_event
-   where useragent ilike '%scale subresource2%'
+   where useragent ilike '%subresourceX%'
    -- where endpoint ilike '%AppsV1NamespacedStatefulSet%'
-   and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+   --and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
   and useragent like 'e2e%'
   order by endpoint
   limit 30;
@@ -659,28 +659,26 @@ Display endpoint coverage change:
 #+begin_SRC example
                  endpoint                  |                                 useragent
 -------------------------------------------+---------------------------------------------------------------------------
- connectCoreV1GetNodeProxyWithPath         | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- createAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- createCoreV1Namespace                     | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- createCoreV1NamespacedPod                 | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- createCoreV1NamespacedService             | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- deleteAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- deleteCoreV1Namespace                     | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listCoreV1NamespacedEvent                 | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listCoreV1NamespacedPersistentVolumeClaim | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listCoreV1NamespacedPod                   | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listCoreV1NamespacedServiceAccount        | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listCoreV1Node                            | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listCoreV1PersistentVolume                | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- listPolicyV1beta1PodSecurityPolicy        | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- patchAppsV1NamespacedStatefulSetScale     | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- readAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- readAppsV1NamespacedStatefulSetScale      | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- readCoreV1Node                            | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
- replaceAppsV1NamespacedStatefulSet        | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
-                                           | [StatefulSetBasic] should have a working scale subresource2 [Conformance]
-(21 rows)
+ connectCoreV1GetNodeProxyWithPath         | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ createAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ createCoreV1Namespace                     | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ createCoreV1NamespacedPod                 | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ createCoreV1NamespacedService             | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ deleteAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listCoreV1NamespacedEvent                 | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listCoreV1NamespacedPersistentVolumeClaim | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listCoreV1NamespacedPod                   | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listCoreV1NamespacedServiceAccount        | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listCoreV1Node                            | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listCoreV1PersistentVolume                | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ listPolicyV1beta1PodSecurityPolicy        | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ patchAppsV1NamespacedStatefulSetScale     | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ readAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ readAppsV1NamespacedStatefulSetScale      | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ readCoreV1Node                            | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+ replaceAppsV1NamespacedStatefulSet        | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
+(19 rows)
 
 #+end_SRC
 
@@ -712,7 +710,7 @@ This test is also created with the goal of conformance promotion.
 
 
 * scratch
-#+BEGIN_SRC
+#+begin_src sql-mode :exports both :session none
 CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
   SELECT
     ec.*,
@@ -729,6 +727,9 @@ CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
             ;
 #+END_SRC
 
+
+
+*** Explore what is touched by the Kubectl commands
 #+begin_src sql-mode :exports both :session none
   select distinct  endpoint, left(useragent,93) AS useragent
   -- select distinct  endpoint, right(useragent,73) AS useragent
@@ -759,3 +760,210 @@ CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
 (10 rows)
 
 #+end_SRC
+
+
+
+*** What endpoints was touch by the original test of Scale endpoints in statefulSet.go
+
+
+#+begin_src sql-mode :exports both :session none
+select endpoint, audit_id
+  from audit_event
+ where test like '%should have a working scale subresource%'
+ order by endpoint;
+
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                    endpoint                    |               audit_id
+------------------------------------------------+--------------------------------------
+ createAppsV1NamespacedStatefulSet              | 5088cbf6-c463-4491-84b6-440a117d8760
+ createAppsV1NamespacedStatefulSet              | f30cd7d3-422e-4fe6-b7ef-98fb873b4347
+ createAppsV1NamespacedStatefulSet              | 9898c53e-bb48-4e70-81c9-c93c60994457
+ createAppsV1NamespacedStatefulSet              | f30cd7d3-422e-4fe6-b7ef-98fb873b4347
+ createAuthorizationV1SubjectAccessReview       | 07f6b7c8-19cf-49d9-ae9b-3e63b4191275
+ createCoreV1Namespace                          | 803f4218-6cce-4176-a19c-31dbf31e8e10
+ createCoreV1Namespace                          | 2517f4e1-00a1-4eff-a0af-16b21e7b7221
+ createCoreV1Namespace                          | c8c177cb-8cb3-47ed-a7c7-16c6893cc39f
+ createCoreV1Namespace                          | c8c177cb-8cb3-47ed-a7c7-16c6893cc39f
+ createCoreV1NamespacedService                  | 8f12aa2f-248d-42f6-b3a7-e979a8e31ec7
+ createCoreV1NamespacedService                  | e35d7786-0d9a-4250-929a-1e0380ec1261
+ createCoreV1NamespacedService                  | 8f12aa2f-248d-42f6-b3a7-e979a8e31ec7
+ createCoreV1NamespacedService                  | d05d71dd-17b8-4de0-88ec-c2f0eef4b3a0
+ createRbacAuthorizationV1NamespacedRoleBinding | e512fb5d-cc81-4a4c-9981-ccc14c173182
+ deleteAppsV1NamespacedStatefulSet              | b1fc7907-d9ba-4a5f-998f-a11646ff34ec
+ deleteAppsV1NamespacedStatefulSet              | b1fc7907-d9ba-4a5f-998f-a11646ff34ec
+ deleteAppsV1NamespacedStatefulSet              | 37255553-9e01-47b2-b2b9-357929ff920d
+ deleteAppsV1NamespacedStatefulSet              | 96376edd-b560-4e87-9fe0-b83243f9dae4
+ deleteCoreV1Namespace                          | f7709e46-87fa-4cc3-a43f-24250cf21114
+ deleteCoreV1Namespace                          | 61ae39a0-aa66-4cd6-8814-a20d7037ff7d
+ deleteCoreV1Namespace                          | 87155d02-e1db-4771-8107-a793ba78c169
+ deleteCoreV1Namespace                          | 87155d02-e1db-4771-8107-a793ba78c169
+ listAppsV1NamespacedStatefulSet                | 4d0f0873-baab-4486-961b-5d3601a844eb
+ listAppsV1NamespacedStatefulSet                | 8003e64b-5037-4a20-be0a-b73ca37a42e0
+ listAppsV1NamespacedStatefulSet                | 8003e64b-5037-4a20-be0a-b73ca37a42e0
+ listAppsV1NamespacedStatefulSet                | bf2c7cd2-b319-442a-a2d0-3b91dbf5a53b
+ listCoreV1NamespacedPersistentVolumeClaim      | 53db3e55-cc13-4f7f-9cdd-132af020d0a8
+ listCoreV1NamespacedPersistentVolumeClaim      | 92dc1792-d622-4cb1-b891-0be5393cf032
+ listCoreV1NamespacedPersistentVolumeClaim      | de92708a-9ad5-4f71-926a-03e64a680bf3
+ listCoreV1NamespacedPersistentVolumeClaim      | 53db3e55-cc13-4f7f-9cdd-132af020d0a8
+ listCoreV1NamespacedPod                        | 391420bc-d451-46c6-8038-b096f5757fa1
+ listCoreV1NamespacedPod                        | 5f5b523e-4901-4c6f-9266-2491fbfdd31b
+ listCoreV1NamespacedPod                        | 02f2b1aa-ed20-426b-b798-b2946feed416
+ listCoreV1NamespacedPod                        | dcfbbfef-3743-4928-9bd3-f4fc47dea687
+ listCoreV1NamespacedPod                        | 5f5b523e-4901-4c6f-9266-2491fbfdd31b
+ listCoreV1NamespacedPod                        | 4e588a62-f10c-46ba-9cc3-1fb25c40889d
+ listCoreV1NamespacedPod                        | dcfbbfef-3743-4928-9bd3-f4fc47dea687
+ listCoreV1NamespacedPod                        | d874fef8-3313-49da-8215-76a10b5637ef
+ listCoreV1NamespacedPod                        | 66c19876-bf25-4e41-a986-b7d25aa79f1b
+ listCoreV1NamespacedPod                        | 66c19876-bf25-4e41-a986-b7d25aa79f1b
+ listCoreV1NamespacedPod                        | cd48e9da-d4bc-434b-98e6-77ae57f972f0
+ listCoreV1NamespacedPod                        | 03d662f2-b04b-4f86-a4f0-c4f4966b25a9
+ listCoreV1NamespacedPod                        | 9346f834-47e1-4289-9d97-86d4ff4e5dca
+ listCoreV1NamespacedPod                        | 0af1598a-a554-47e7-b398-add53e627320
+ listCoreV1NamespacedPod                        | 02f2b1aa-ed20-426b-b798-b2946feed416
+ listCoreV1NamespacedPod                        | d874fef8-3313-49da-8215-76a10b5637ef
+ listCoreV1NamespacedPod                        | 516e3ed0-2b02-4db0-9d26-972c475693d3
+ listCoreV1NamespacedPod                        | 2b1c44f6-0f46-46b9-81d7-e34f4c861ea0
+ listCoreV1NamespacedPod                        | 5c0ecf83-25d7-4005-8229-721d958a61ea
+ listCoreV1NamespacedPod                        | 5c0ecf83-25d7-4005-8229-721d958a61ea
+ listCoreV1NamespacedPod                        | c85b4c9a-b451-460a-9edb-431bed65cb93
+ listCoreV1NamespacedPod                        | 91aa597d-5fa0-4da4-9eb3-8d6c25337bb9
+ listCoreV1NamespacedPod                        | 1198a32f-b16e-4db0-88b1-821d4ab2fa26
+ listCoreV1NamespacedServiceAccount             | 9e042d12-1434-4ada-9ba6-867c000977bf
+ listCoreV1NamespacedServiceAccount             | 9e042d12-1434-4ada-9ba6-867c000977bf
+ listCoreV1NamespacedServiceAccount             | 84b76cb4-64fd-4ca4-a9e4-8ca1a623fd09
+ listCoreV1NamespacedServiceAccount             | 84b76cb4-64fd-4ca4-a9e4-8ca1a623fd09
+ listCoreV1NamespacedServiceAccount             | bbbd48ca-3f3e-4d75-a21d-3df03e19dcb0
+ listCoreV1NamespacedServiceAccount             | 8b0baf2a-d1a9-4a02-9341-8f2249a7ec73
+ listCoreV1NamespacedServiceAccount             | 18928322-4856-4c66-a173-af0cd1aa5760
+ listCoreV1NamespacedServiceAccount             | 18928322-4856-4c66-a173-af0cd1aa5760
+ listCoreV1NamespacedServiceAccount             | 9e2ad942-0011-487b-979d-ded1eb40bfce
+ listCoreV1NamespacedServiceAccount             | 9e2ad942-0011-487b-979d-ded1eb40bfce
+ listCoreV1NamespacedServiceAccount             | b2355e77-66e5-4227-82f8-6f7f637de21e
+ listCoreV1NamespacedServiceAccount             | 25c2c844-e8b8-4a47-9958-37dd93c98726
+ listCoreV1NamespacedServiceAccount             | 8b0baf2a-d1a9-4a02-9341-8f2249a7ec73
+ listCoreV1NamespacedServiceAccount             | 9e2ad942-0011-487b-979d-ded1eb40bfce
+ listCoreV1NamespacedServiceAccount             | cc45e696-6bcf-42e7-b291-ef2fb0f5007f
+ listCoreV1NamespacedServiceAccount             | 62adbfd2-55b5-4bc7-a1fa-2515e07c6d77
+ listCoreV1NamespacedServiceAccount             | 208fa940-6e7d-4cb0-b2e7-941a26b0e86a
+ listCoreV1NamespacedServiceAccount             | b2355e77-66e5-4227-82f8-6f7f637de21e
+ listCoreV1NamespacedServiceAccount             | 7276db64-b856-40c4-ae2f-a9adba9d39d5
+ listCoreV1NamespacedServiceAccount             | 62adbfd2-55b5-4bc7-a1fa-2515e07c6d77
+ listCoreV1NamespacedServiceAccount             | 208fa940-6e7d-4cb0-b2e7-941a26b0e86a
+ listCoreV1NamespacedServiceAccount             | 208fa940-6e7d-4cb0-b2e7-941a26b0e86a
+ listCoreV1Node                                 | 6ee5673f-9ebd-4b52-853c-b49b21227779
+ listCoreV1Node                                 | 743c4b4c-9e7e-436d-a8f6-9d945b999884
+ listCoreV1Node                                 | 8504dfa5-d20b-4146-8e37-2d3c71a8d50a
+ listCoreV1Node                                 | 6ee5673f-9ebd-4b52-853c-b49b21227779
+ listCoreV1PersistentVolume                     | 5045c761-8a12-4d6d-9fed-6724ee6947aa
+ listCoreV1PersistentVolume                     | 684368c8-4d0c-41cb-9377-0c771ff02659
+ listCoreV1PersistentVolume                     | 6b9108f6-b0b6-4294-83da-5709d195c407
+ listCoreV1PersistentVolume                     | 5045c761-8a12-4d6d-9fed-6724ee6947aa
+ readAppsV1NamespacedStatefulSet                | 2a773980-12eb-4210-bb29-41f5ea73063e
+ readAppsV1NamespacedStatefulSet                | 922686fa-847b-4b86-a430-379d6e258597
+ readAppsV1NamespacedStatefulSet                | 922686fa-847b-4b86-a430-379d6e258597
+ readAppsV1NamespacedStatefulSet                | 554a9dfe-889b-494d-a6ae-e578b5f5f230
+ readAppsV1NamespacedStatefulSet                | ceac6cae-0faa-4b62-aad7-98cf7b562a25
+ readAppsV1NamespacedStatefulSet                | c3b3678d-aba1-4b86-9a34-234d11618d89
+ readAppsV1NamespacedStatefulSet                | 2a773980-12eb-4210-bb29-41f5ea73063e
+ readAppsV1NamespacedStatefulSet                | 04ad36c1-6d6c-452d-a92f-70b348b765c9
+ readAppsV1NamespacedStatefulSet                | bb9352a0-75f7-4742-ba81-b82a3828d9d8
+ readAppsV1NamespacedStatefulSet                | f2067bc1-81a2-44c3-8e03-308efedf9338
+ readAppsV1NamespacedStatefulSet                | 04ad36c1-6d6c-452d-a92f-70b348b765c9
+ readAppsV1NamespacedStatefulSet                | c749a254-6b2c-4692-aec3-54a13e9e1324
+ readAppsV1NamespacedStatefulSet                | e72f6cb3-5c56-458f-88e8-420ebc0c711e
+ readAppsV1NamespacedStatefulSet                | bb3fcaf7-5fc8-4d69-9d93-a9a8a3d68b2d
+ readAppsV1NamespacedStatefulSet                | bb3fcaf7-5fc8-4d69-9d93-a9a8a3d68b2d
+ readAppsV1NamespacedStatefulSet                | 0d8ca04f-1667-4f26-a8ba-ae509af7c88a
+ readAppsV1NamespacedStatefulSet                | f2067bc1-81a2-44c3-8e03-308efedf9338
+ readAppsV1NamespacedStatefulSet                | d993319b-44e6-4bfb-a193-9f7b6fbba70d
+ readAppsV1NamespacedStatefulSetScale           | 72658e4a-f02c-482d-98ba-7a9d38623c7f
+ readAppsV1NamespacedStatefulSetScale           | 72658e4a-f02c-482d-98ba-7a9d38623c7f
+ readAppsV1NamespacedStatefulSetScale           | 4aa426e6-59b1-4919-9bc3-e0c94af6690a
+ readAppsV1NamespacedStatefulSetScale           | 84c3b318-070b-47c8-ac6a-250d935ca37a
+ replaceAppsV1NamespacedStatefulSet             | 372d60e8-e8af-4f42-92ba-3672f5235f22
+ replaceAppsV1NamespacedStatefulSet             | 669b9b6c-9362-4774-a452-29d58a0ab22a
+ replaceAppsV1NamespacedStatefulSet             | 669b9b6c-9362-4774-a452-29d58a0ab22a
+ replaceAppsV1NamespacedStatefulSet             | 07ec3f3e-e362-4513-a92d-4024db927bc3
+ replaceAppsV1NamespacedStatefulSet             | ace85b9f-aaa3-4f74-877c-ec778e6f34d2
+ replaceAppsV1NamespacedStatefulSet             | 07ec3f3e-e362-4513-a92d-4024db927bc3
+ replaceAppsV1NamespacedStatefulSetScale        | 3dc4ec9b-040b-4a7b-b1fa-7a82f661549b
+ replaceAppsV1NamespacedStatefulSetScale        | 49f5763a-e453-4ded-95c6-7028f1577270
+ replaceAppsV1NamespacedStatefulSetScale        | 3dc4ec9b-040b-4a7b-b1fa-7a82f661549b
+ replaceAppsV1NamespacedStatefulSetScale        | 0f135245-feec-4c8a-866e-fa7b64513304
+(115 rows)
+
+#+end_SRC
+
+
+*** Original k/k master statefulset.go hit these endpoints:
+
+                    endpoint
+------------------------------------------------
+ createAppsV1NamespacedStatefulSet
+ createAuthorizationV1SubjectAccessReview *
+ createCoreV1Namespace
+ createCoreV1NamespacedService
+ createRbacAuthorizationV1NamespacedRoleBinding *
+ deleteAppsV1NamespacedStatefulSet
+ deleteCoreV1Namespace                   *
+ listAppsV1NamespacedStatefulSet
+ listCoreV1NamespacedPersistentVolumeClaim
+ listCoreV1NamespacedPod
+ listCoreV1NamespacedServiceAccount
+ listCoreV1Node
+ listCoreV1PersistentVolume
+ readAppsV1NamespacedStatefulSet
+ readAppsV1NamespacedStatefulSetScale
+ replaceAppsV1NamespacedStatefulSet
+ replaceAppsV1NamespacedStatefulSetScale *
+
+
+
+
+
+*** Updated ii/k/k statefulset.go hit these endpoints:
+ connectCoreV1GetNodeProxyWithPath     *
+ createAppsV1NamespacedStatefulSet
+ createCoreV1Namespace
+ createCoreV1NamespacedPod             *
+ createCoreV1NamespacedService
+ deleteAppsV1NamespacedStatefulSet
+ listAppsV1NamespacedStatefulSet
+ listCoreV1NamespacedEvent             *
+ listCoreV1NamespacedPersistentVolumeClaim
+ listCoreV1NamespacedPod
+ listCoreV1NamespacedServiceAccount
+ listCoreV1Node
+ listCoreV1PersistentVolume
+ patchAppsV1NamespacedStatefulSetScale *
+ readAppsV1NamespacedStatefulSet
+ readAppsV1NamespacedStatefulSetScale
+ readCoreV1Node                        *
+ replaceAppsV1NamespacedStatefulSet
+
+
+
+*** Diff mods
+Master- Lost
+
+createAuthorizationV1SubjectAccessReview *
+createRbacAuthorizationV1NamespacedRoleBinding *
+deleteCoreV1Namespace  *
+replaceAppsV1NamespacedStatefulSetScale *
+
+
+ii - Gain
+connectCoreV1GetNodeProxyWithPath  *
+createCoreV1NamespacedPod           *
+listCoreV1NamespacedEvent   *
+patchAppsV1NamespacedStatefulSetScale   *
+readCoreV1Node  *
+
+Conclusion:
+The lost of "replaceAppsV1NamespacedStatefulSetScale" endpoint is a big set back.
+The gain of "patchAppsV1NamespacedStatefulSetScale" was the objective of this test.
+The next step would combine the original GetScale method with the added Patch method
