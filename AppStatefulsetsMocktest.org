@@ -133,6 +133,12 @@ spec:
  ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
+#+RESULTS:
+#+begin_example
+/home/ii/ticket-writing
+-rw-r--r--  1 ii ii    840 Jan 15 09:22 statefulset_test.yaml
+#+end_example
+
 
 
 
@@ -153,10 +159,17 @@ namespace/app-statefulset-tests created
 
 
 
+
 - Create a StatefulSet
 #+begin_src shell :results raw
 kubectl apply -f statefulset_test.yaml --namespace=app-statefulset-tests
 #+end_src
+
+#+RESULTS:
+#+begin_example
+service/nginx created
+statefulset.apps/web created
+#+end_example
 
 
 
@@ -169,17 +182,51 @@ kubectl apply -f statefulset_test.yaml --namespace=app-statefulset-tests
   kubectl get statefulset -A | grep web
 #+end_src
 
+#+RESULTS:
+#+begin_example
+app-statefulset-tests   web                     0/2     14s
+#+end_example
 
 
 
 
-*** 3. Scale the Statefulset
+
+*** 3. Scale the Statefulset up to 4 replicas
 
 #+begin_src shell :results raw
-  kubectl scale statfulsets web -n app-statefulset-tests --replicas=4
+  kubectl scale statefulsets web -n app-statefulset-tests --replicas=5
   sleep 5
   kubectl get statefulset -A | grep web
 #+end_src
+
+#+RESULTS:
+#+begin_example
+statefulset.apps/web scaled
+app-statefulset-tests   web                     0/5     17m
+#+end_example
+
+
+
+*** Scaling down by patch of the spec - STUCK HIER, WIL NIE PATCH
+#+begin_src shell :results raw
+kubectl scale statefulsets web -p '{"spec":{"replicas":3}}'
+
+#kubectl scale statefulsets web -p -n app-statefulset-tests '{"spec":{"replicas":3}}'
+kubectl get statefulset -A | grep web
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+app-statefulset-tests   web                     0/5     20m
+#+end_example
+
+
+
+
+
+
+
 
 
 WIP- Still to convert below this point
