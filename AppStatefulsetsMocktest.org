@@ -92,17 +92,16 @@ kind: StatefulSet
 metadata:
   name: web
 spec:
+  serviceName: "nginx"
+  replicas: 2
   selector:
     matchLabels:
-      app: nginx # has to match .spec.template.metadata.labels
-  serviceName: "nginx"
-  replicas: 3 # by default is 1
+      app: nginx
   template:
     metadata:
       labels:
-        app: nginx # has to match .spec.selector.matchLabels
+        app: nginx
     spec:
-      terminationGracePeriodSeconds: 10
       containers:
       - name: nginx
         image: k8s.gcr.io/nginx-slim:0.8
@@ -117,10 +116,10 @@ spec:
       name: www
     spec:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "my-storage-class"
       resources:
         requests:
           storage: 1Gi
+
 
 #+end_src
 - Tangle to create the .yaml file - `,bt`
@@ -129,17 +128,11 @@ spec:
 - See if the yaml file was created
 #+begin_src shell :results raw
   pwd
- ls -al /home/riaan/Project/ticket-writing |grep .yaml
+# ls -al /home/riaan/Project/ticket-writing |grep .yaml
 
- #ls -al /home/ii/ticket-writing | grep yaml
+ ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
-#+RESULTS:
-#+begin_example
-/home/riaan/Project/ticket-writing
--rw-rw-r--  1 riaan riaan    404 Dec 11 06:39 deployment_test.yaml
--rw-rw-r--  1 riaan riaan   1029 Dec 11 06:39 statefulset_test.yaml
-#+end_example
 
 
 
@@ -160,16 +153,11 @@ namespace/app-statefulset-tests created
 
 
 
-- Create a Deployment
+- Create a StatefulSet
 #+begin_src shell :results raw
 kubectl apply -f statefulset_test.yaml --namespace=app-statefulset-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-service/nginx created
-statefulset.apps/web created
-#+end_example
 
 
 
@@ -181,14 +169,9 @@ statefulset.apps/web created
   kubectl get statefulset -A | grep web
 #+end_src
 
-#+RESULTS:
-#+begin_example
-app-statefulset-tests   web    0/3     79m
-#+end_example
 
 
 
-WIP- Still to convert below this point
 
 *** 3. Scale the Statefulset
 
@@ -196,11 +179,10 @@ WIP- Still to convert below this point
   kubectl scale statfulsets web -n app-statefulset-tests --replicas=4
   sleep 5
   kubectl get statefulset -A | grep web
-  kubectl rollout status deployment.v1.apps/nginx-deployment -n app-deploy-tests
 #+end_src
 
-kubectl scale sts web --replicas=5
 
+WIP- Still to convert below this point
 
 *** 4. Update the deployment:
 #+begin_src shell :results raw
