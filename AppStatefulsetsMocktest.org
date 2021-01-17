@@ -30,7 +30,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       kind
       FROM testing.untested_stable_endpoint
       where eligible is true
-        and endpoint like '%StatefulSet%'
+        and endpoint like '%StatefulSetScale%'
       --and category = 'core'
       order by kind, endpoint desc
       limit 25;
@@ -38,16 +38,10 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
   #+RESULTS: untested_stable_core_endpoints
   #+begin_SRC example
-                    endpoint                   |    kind
-  ---------------------------------------------+-------------
-   patchAppsV1NamespacedStatefulSetScale       | Scale
-   replaceAppsV1NamespacedStatefulSetStatus    | StatefulSet
-   readAppsV1NamespacedStatefulSetStatus       | StatefulSet
-   patchAppsV1NamespacedStatefulSetStatus      | StatefulSet
-   patchAppsV1NamespacedStatefulSet            | StatefulSet
-   listAppsV1StatefulSetForAllNamespaces       | StatefulSet
-   deleteAppsV1CollectionNamespacedStatefulSet | StatefulSet
-  (7 rows)
+                 endpoint                | kind
+  ---------------------------------------+-------
+   patchAppsV1NamespacedStatefulSetScale | Scale
+  (1 row)
 
   #+end_SRC
 
@@ -675,9 +669,9 @@ Display endpoint coverage change:
 #+begin_src sql-mode :exports both :session none
   select distinct  endpoint, right(useragent,73) AS useragent
   from testing.audit_event
-   where useragent ilike '%subresourceX%'
-   -- where endpoint ilike '%AppsV1NamespacedStatefulSet%'
-   --and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+  -- where useragent ilike '%subresource%'
+   where endpoint ilike '%AppsV1NamespacedStatefulSetScale%'
+   and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
   and useragent like 'e2e%'
   order by endpoint
   limit 30;
@@ -686,28 +680,12 @@ Display endpoint coverage change:
 
 #+RESULTS:
 #+begin_SRC example
-                 endpoint                  |                                 useragent
--------------------------------------------+---------------------------------------------------------------------------
- connectCoreV1GetNodeProxyWithPath         | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- createAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- createCoreV1Namespace                     | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- createCoreV1NamespacedPod                 | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- createCoreV1NamespacedService             | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- deleteAppsV1NamespacedStatefulSet         | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listCoreV1NamespacedEvent                 | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listCoreV1NamespacedPersistentVolumeClaim | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listCoreV1NamespacedPod                   | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listCoreV1NamespacedServiceAccount        | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listCoreV1Node                            | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listCoreV1PersistentVolume                | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- listPolicyV1beta1PodSecurityPolicy        | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- patchAppsV1NamespacedStatefulSetScale     | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- readAppsV1NamespacedStatefulSet           | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- readAppsV1NamespacedStatefulSetScale      | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- readCoreV1Node                            | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
- replaceAppsV1NamespacedStatefulSet        | [StatefulSetBasic] should have a working scale subresourceX [Conformance]
-(19 rows)
+                endpoint                 |                                 useragent
+-----------------------------------------+---------------------------------------------------------------------------
+ patchAppsV1NamespacedStatefulSetScale   |  [StatefulSetBasic] should have a working scale subresource [Conformance]
+ readAppsV1NamespacedStatefulSetScale    |  [StatefulSetBasic] should have a working scale subresource [Conformance]
+ replaceAppsV1NamespacedStatefulSetScale |  [StatefulSetBasic] should have a working scale subresource [Conformance]
+(3 rows)
 
 #+end_SRC
 
