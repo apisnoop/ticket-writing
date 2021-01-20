@@ -30,7 +30,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       kind
       FROM testing.untested_stable_endpoint
       where eligible is true
-        and endpoint like '%Scale%'
+        and endpoint like '%ReplicaSet%'
       --and category = 'core'
       order by kind, endpoint desc
       limit 25;
@@ -38,16 +38,18 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
  #+RESULTS: untested_stable_core_endpoints
  #+begin_SRC example
-                 endpoint                | kind  
- ----------------------------------------+-------
-  replaceAppsV1NamespacedReplicaSetScale | Scale
-  replaceAppsV1NamespacedDeploymentScale | Scale
-  readAppsV1NamespacedReplicaSetScale    | Scale
-  readAppsV1NamespacedDeploymentScale    | Scale
-  patchAppsV1NamespacedStatefulSetScale  | Scale
-  patchAppsV1NamespacedReplicaSetScale   | Scale
-  patchAppsV1NamespacedDeploymentScale   | Scale
- (7 rows)
+                   endpoint                  |    kind
+ --------------------------------------------+------------
+  replaceAppsV1NamespacedReplicaSetStatus    | ReplicaSet
+  readAppsV1NamespacedReplicaSetStatus       | ReplicaSet
+  patchAppsV1NamespacedReplicaSetStatus      | ReplicaSet
+  patchAppsV1NamespacedReplicaSet            | ReplicaSet
+  listAppsV1ReplicaSetForAllNamespaces       | ReplicaSet
+  deleteAppsV1CollectionNamespacedReplicaSet | ReplicaSet
+  replaceAppsV1NamespacedReplicaSetScale     | Scale
+  readAppsV1NamespacedReplicaSetScale        | Scale
+  patchAppsV1NamespacedReplicaSetScale       | Scale
+ (9 rows)
 
  #+end_SRC
 
@@ -102,6 +104,31 @@ spec:
 - Tangle to create the .yaml file - `,bt`
 
 
+#+begin_src yaml :tangle replicaset_test.yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: frontend2
+  labels:
+    app: guestbook
+    tier: frontend2
+spec:
+  # modify replicas according to your case
+  replicas: 3
+  selector:
+    matchLabels:
+      tier: frontend2
+  template:
+    metadata:
+      labels:
+        tier: frontend2
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
+
+
+#+end_src
 - See if the yaml file was created
 #+begin_src shell :results raw
   pwd
@@ -113,8 +140,12 @@ spec:
 #+RESULTS:
 #+begin_example
 /home/ii/ticket-writing
--rw-r--r--  1 ii ii    457 Jan 21 05:48 ReplicaSet_test.yaml
+-rw-r--r--  1 ii ii    512 Jan 21 11:00 PatchReplicaSet_test.yaml
+-rw-r--r--  1 ii ii    444 Jan 21 11:00 replicaset_test.yaml
+-rw-r--r--  1 ii ii    456 Jan 21 11:00 ReplicaSet_test.yaml
 #+end_example
+
+
 
 
 
@@ -132,16 +163,22 @@ namespace/app-replicaset-tests created
 #+end_example
 
 
+
+
 - Creating a Replicaset
 
 #+begin_src shell :results raw
 kubectl apply -f ReplicaSet_test.yaml --namespace=app-replicaset-tests
+kubectl apply -f replicaset_test.yaml --namespace=app-replicaset-tests
 #+end_src
 
 #+RESULTS:
 #+begin_example
 replicaset.apps/frontend created
+replicaset.apps/frontend2 created
 #+end_example
+
+
 
 
 - Finding the ReplicaSet
@@ -151,8 +188,11 @@ kubectl get rs -A | grep frontend
 
 #+RESULTS:
 #+begin_example
-app-replicaset-tests   frontend                                            3         3         3       13s
+app-replicaset-tests   frontend                                            3         3         3       19s
+app-replicaset-tests   frontend2                                           3         3         3       19s
 #+end_example
+
+
 
 - Scale the replicaset
 #+begin_src shell :results raw
@@ -165,15 +205,30 @@ replicaset.apps/frontend scaled
 #+end_example
 
 
+
+
 - look for scaled replicas
 #+begin_src shell :results raw
-kubectl get rs -A | grep frontend
+  kubectl get rs -A | grep frontend
 #+end_src
 
 #+RESULTS:
 #+begin_example
-app-replicaset-tests   frontend                                            5         5         5       4m40s
+app-replicaset-tests   frontend                                            5         5         5       57s
+app-replicaset-tests   frontend2                                           3         3         3       57s
 #+end_example
+
+
+
+- Scale the replicaset again - Add no new endpoint
+#+begin_src shell :results raw
+#kubectl scale rs frontend -n app-replicaset-tests --replicas=6
+#+end_src
+
+
+
+
+
 
 - Create a PATCH .yaml file
 
@@ -202,27 +257,9 @@ spec:
 
 
 #+end_src
-- Tangle to create the .yaml file - `,bt`
-
-
-- See if the PATCH yaml file was created
-#+begin_src shell :results raw
-  pwd
-# ls -al /home/riaan/Project/ticket-writing |grep .yaml
-
- ls -al /home/ii/ticket-writing | grep yaml
-#+end_src
-
-#+RESULTS:
-#+begin_example
-/home/ii/ticket-writing
--rw-r--r--  1 ii ii    585 Jan 21 06:02 PatchReplicaSet_test.yaml
--rw-r--r--  1 ii ii    457 Jan 21 06:02 ReplicaSet_test.yaml
-#+end_example
 
 
 - Patch the ReplicaSet
-
 
 #+begin_src shell :results raw
 kubectl patch rs frontend -n app-replicaset-tests --patch "$(cat PatchReplicaSet_test.yaml)"
@@ -236,17 +273,46 @@ replicaset.apps/frontend patched
 #+end_example
 
 
+
+
 - Look for the Patched ReplicaSet
 
 #+begin_src shell :results raw
-kubectl get rs -A | grep frontend
+  kubectl get rs -A | grep frontend
 
 #+end_src
 
 #+RESULTS:
 #+begin_example
-app-replicaset-tests   frontend                                            7         7         7       20m
+app-replicaset-tests   frontend                                            7         7         7       2m3s
+app-replicaset-tests   frontend2                                           3         3         3       2m3s
 #+end_example
+
+
+Get the SCALE for RS
+#+begin_src shell :results raw
+kubectl get --raw /apis/apps/v1/namespaces/app-replicaset-tests/replicasets/frontend/scale
+
+
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{"kind":"Scale","apiVersion":"autoscaling/v1","metadata":{"name":"frontend","namespace":"app-replicaset-tests","uid":"d577d314-5bd3-4561-8a27-2b184999f12b","resourceVersion":"73557","creationTimestamp":"2021-01-20T23:10:06Z"},"spec":{"replicas":7},"status":{"replicas":7,"selector":"tier=frontend"}}
+#+end_example
+
+
+
+
+
+
+
+
+#+begin_src shell :results raw
+kubectl delete replicasets -n app-replicaset-tests --all
+
+#+end_src
+
 
 
 - Clean-up
@@ -275,6 +341,7 @@ kubectl get namespace -A | grep replicaset
 
 
 
+
 - Delete audit events to check for success
 
 - Count all audit events
@@ -282,11 +349,25 @@ kubectl get namespace -A | grep replicaset
 select count(*) from testing.audit_event;
 #+end_src
 
+#+RESULTS:
+#+begin_SRC example
+  count
+---------
+ 2270944
+(1 row)
+
+#+end_SRC
+
 
 - Delete all audit events
 #+begin_src sql-mode
 delete from testing.audit_event;
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 2271649
+#+end_SRC
 
 
 
@@ -311,15 +392,23 @@ delete from testing.audit_event;
 --------------------------------------+--------------------------------------------------
  createAppsV1NamespacedReplicaSet     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
  deleteAppsV1NamespacedReplicaSet     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1NamespacedReplicaSet       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
  listAppsV1ReplicaSetForAllNamespaces | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
  patchAppsV1NamespacedReplicaSet      | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
  patchAppsV1NamespacedReplicaSetScale | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
  readAppsV1NamespacedReplicaSet       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
-(6 rows)
+ readAppsV1NamespacedReplicaSetScale  | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+(8 rows)
 
 #+end_SRC
 
 
+
+- Untested endpoint hit by Kubectl commands
+listAppsV1ReplicaSetForAllNamespaces
+patchAppsV1NamespacedReplicaSet
+patchAppsV1NamespacedReplicaSetScale
+readAppsV1NamespacedReplicaSetScale
 
 
 ** Test the functionality in Go
