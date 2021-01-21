@@ -162,6 +162,31 @@ spec:
 
 
 
+#+begin_src yaml :tangle ReplaceReplicaSet_test.yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: frontend
+  labels:
+    app: guestbook
+    tier: frontend
+spec:
+  # modify replicas according to your case
+  replicas: 12
+  selector:
+    matchLabels:
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        tier: frontend
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
+
+
+#+end_src
 -------------------------------------------------------------------
 
 
@@ -174,6 +199,15 @@ spec:
  ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
+#+RESULTS:
+#+begin_example
+/home/ii/ticket-writing
+-rw-r--r--  1 ii ii    428 Jan 22 09:33 PatchReplicaSet_test.yaml
+-rw-r--r--  1 ii ii    393 Jan 22 09:33 ReplaceReplicaSet_test.yaml
+-rw-r--r--  1 ii ii    396 Jan 22 09:33 replicaset_test.yaml
+-rw-r--r--  1 ii ii    503 Jan 22 09:33 ReplicaSet_test.yaml
+#+end_example
+
 
 
 *** Create a Namespace
@@ -181,6 +215,11 @@ spec:
 kubectl create namespace app-replicaset-tests
 
 #+end_src
+
+#+RESULTS:
+#+begin_example
+namespace/app-replicaset-tests created
+#+end_example
 
 
 
@@ -191,6 +230,12 @@ kubectl apply -f ReplicaSet_test.yaml --namespace=app-replicaset-tests
 kubectl apply -f replicaset_test.yaml --namespace=app-replicaset-tests
 #+end_src
 
+#+RESULTS:
+#+begin_example
+replicaset.apps/frontend created
+replicaset.apps/frontend2 created
+#+end_example
+
 
 
 
@@ -200,6 +245,12 @@ kubectl apply -f replicaset_test.yaml --namespace=app-replicaset-tests
 kubectl get rs -A | grep frontend
 #+end_src
 
+#+RESULTS:
+#+begin_example
+app-replicaset-tests   frontend                                            3         3         3       32s
+app-replicaset-tests   frontend2                                           3         3         3       31s
+#+end_example
+
 
 
 
@@ -207,6 +258,11 @@ kubectl get rs -A | grep frontend
 #+begin_src shell :results raw
 kubectl scale rs frontend -n app-replicaset-tests --replicas=5
 #+end_src
+
+#+RESULTS:
+#+begin_example
+replicaset.apps/frontend scaled
+#+end_example
 
 
 
@@ -216,6 +272,12 @@ kubectl scale rs frontend -n app-replicaset-tests --replicas=5
 #+begin_src shell :results raw
   kubectl get rs -A | grep frontend
 #+end_src
+
+#+RESULTS:
+#+begin_example
+app-replicaset-tests   frontend                                            5         5         5       46s
+app-replicaset-tests   frontend2                                           3         3         3       45s
+#+end_example
 
 
 
@@ -228,6 +290,11 @@ kubectl patch rs frontend -n app-replicaset-tests --patch "$(cat PatchReplicaSet
 
 #+end_src
 
+#+RESULTS:
+#+begin_example
+replicaset.apps/frontend patched
+#+end_example
+
 
 *** Look for the Patched ReplicaSet
 
@@ -235,6 +302,12 @@ kubectl patch rs frontend -n app-replicaset-tests --patch "$(cat PatchReplicaSet
   kubectl get rs -A | grep frontend
 
 #+end_src
+
+#+RESULTS:
+#+begin_example
+app-replicaset-tests   frontend                                            7         7         7       83s
+app-replicaset-tests   frontend2                                           3         3         3       82s
+#+end_example
 
 
 
@@ -245,20 +318,28 @@ kubectl get --raw /apis/apps/v1/namespaces/app-replicaset-tests/replicasets/fron
 
 #+end_src
 
-*** Delete all the replicasets - NOT HITTING "CollectionNamespacedReplicaSets"
+#+RESULTS:
+#+begin_example
+{"kind":"Scale","apiVersion":"autoscaling/v1","metadata":{"name":"frontend","namespace":"app-replicaset-tests","uid":"472b4785-197d-404f-a181-8f0ccb207277","resourceVersion":"52791","creationTimestamp":"2021-01-21T18:09:43Z"},"spec":{"replicas":7},"status":{"replicas":7,"selector":"tier=frontend"}}
+#+end_example
+
+
+
+*** Replace scale for RS
 #+begin_src shell :results raw
-kubectl delete replicasets -n app-replicaset-tests --all
+kubectl -n app-replicaset-tests replace -f ReplaceReplicaSet_test.yaml
+
+
 
 #+end_src
 
+#+RESULTS:
+#+begin_example
+replicaset.apps/frontend replaced
+#+end_example
 
 
-*** Clean-up
 
-#+begin_src shell :results raw
-kubectl delete rs frontend
-kubectl delete namespaces/app-replicaset-tests
-#+end_src
 
 
 
