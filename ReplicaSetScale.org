@@ -75,7 +75,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 *** 1. Create a ReplicaSet yaml file, namespace and Deployment
 
-- Tangle to create the 3 .yamls file - `,bt`
+- Tangle to create the 4 .yamls file - `,bt`
 
 #+begin_src yaml :tangle ReplicaSet_test.yaml
 apiVersion: apps/v1
@@ -99,7 +99,7 @@ spec:
       containers:
       - name: php-redis
         image: gcr.io/google_samples/gb-frontend:v3
-
+#This file is for the ReplicaSet to be change with commands
 
 #+end_src
 
@@ -126,13 +126,10 @@ spec:
       containers:
       - name: php-redis
         image: gcr.io/google_samples/gb-frontend:v3
-
+#This file is for attempting to do a Delete of CollectionNamespacedReplicaSets
 
 #+end_src
 
-
-
-- Create a PATCH .yaml file
 
 #+begin_src yaml :tangle PatchReplicaSet_test.yaml
 apiVersion: apps/v1
@@ -156,10 +153,9 @@ spec:
       containers:
       - name: php-redis
         image: gcr.io/google_samples/gb-frontend:v3
-
+#This file for the the PATCH command
 
 #+end_src
-
 
 
 #+begin_src yaml :tangle ReplaceReplicaSet_test.yaml
@@ -184,7 +180,7 @@ spec:
       containers:
       - name: php-redis
         image: gcr.io/google_samples/gb-frontend:v3
-
+#This file is for the REPLACE command
 
 #+end_src
 -------------------------------------------------------------------
@@ -199,14 +195,6 @@ spec:
  ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
-#+RESULTS:
-#+begin_example
-/home/ii/ticket-writing
--rw-r--r--  1 ii ii    428 Jan 22 09:33 PatchReplicaSet_test.yaml
--rw-r--r--  1 ii ii    393 Jan 22 09:33 ReplaceReplicaSet_test.yaml
--rw-r--r--  1 ii ii    396 Jan 22 09:33 replicaset_test.yaml
--rw-r--r--  1 ii ii    503 Jan 22 09:33 ReplicaSet_test.yaml
-#+end_example
 
 
 
@@ -215,11 +203,6 @@ spec:
 kubectl create namespace app-replicaset-tests
 
 #+end_src
-
-#+RESULTS:
-#+begin_example
-namespace/app-replicaset-tests created
-#+end_example
 
 
 
@@ -230,14 +213,6 @@ kubectl apply -f ReplicaSet_test.yaml --namespace=app-replicaset-tests
 kubectl apply -f replicaset_test.yaml --namespace=app-replicaset-tests
 #+end_src
 
-#+RESULTS:
-#+begin_example
-replicaset.apps/frontend created
-replicaset.apps/frontend2 created
-#+end_example
-
-
-
 
 
 *** Finding the ReplicaSet
@@ -245,11 +220,6 @@ replicaset.apps/frontend2 created
 kubectl get rs -A | grep frontend
 #+end_src
 
-#+RESULTS:
-#+begin_example
-app-replicaset-tests   frontend                                            3         3         3       32s
-app-replicaset-tests   frontend2                                           3         3         3       31s
-#+end_example
 
 
 
@@ -259,10 +229,6 @@ app-replicaset-tests   frontend2                                           3    
 kubectl scale rs frontend -n app-replicaset-tests --replicas=5
 #+end_src
 
-#+RESULTS:
-#+begin_example
-replicaset.apps/frontend scaled
-#+end_example
 
 
 
@@ -273,11 +239,6 @@ replicaset.apps/frontend scaled
   kubectl get rs -A | grep frontend
 #+end_src
 
-#+RESULTS:
-#+begin_example
-app-replicaset-tests   frontend                                            5         5         5       46s
-app-replicaset-tests   frontend2                                           3         3         3       45s
-#+end_example
 
 
 
@@ -290,24 +251,15 @@ kubectl patch rs frontend -n app-replicaset-tests --patch "$(cat PatchReplicaSet
 
 #+end_src
 
-#+RESULTS:
-#+begin_example
-replicaset.apps/frontend patched
-#+end_example
 
 
 *** Look for the Patched ReplicaSet
 
 #+begin_src shell :results raw
-  kubectl get rs -A | grep frontend
+kubectl get rs -A | grep frontend
 
 #+end_src
 
-#+RESULTS:
-#+begin_example
-app-replicaset-tests   frontend                                            7         7         7       83s
-app-replicaset-tests   frontend2                                           3         3         3       82s
-#+end_example
 
 
 
@@ -318,10 +270,15 @@ kubectl get --raw /apis/apps/v1/namespaces/app-replicaset-tests/replicasets/fron
 
 #+end_src
 
-#+RESULTS:
-#+begin_example
-{"kind":"Scale","apiVersion":"autoscaling/v1","metadata":{"name":"frontend","namespace":"app-replicaset-tests","uid":"472b4785-197d-404f-a181-8f0ccb207277","resourceVersion":"52791","creationTimestamp":"2021-01-21T18:09:43Z"},"spec":{"replicas":7},"status":{"replicas":7,"selector":"tier=frontend"}}
-#+end_example
+
+*** Look for the SCALED ReplicaSet
+
+#+begin_src shell :results raw
+  kubectl get rs -A | grep frontend
+
+#+end_src
+
+
 
 
 
@@ -329,26 +286,37 @@ kubectl get --raw /apis/apps/v1/namespaces/app-replicaset-tests/replicasets/fron
 #+begin_src shell :results raw
 kubectl -n app-replicaset-tests replace -f ReplaceReplicaSet_test.yaml
 
-
-
 #+end_src
 
-#+RESULTS:
-#+begin_example
-replicaset.apps/frontend replaced
-#+end_example
 
-
-
-
-
-
-
+*** Look for the Replaced ReplicaSet
 #+begin_src shell :results raw
- get rs -A | grep frontend
+kubectl get rs -A | grep frontend
 kubectl get namespace -A | grep replicaset
 #+end_src
 
+
+*** DeleteCollectionNamespacedRepicasets??
+Still not sure how to do this
+
+
+
+*** Cleanup
+
+
+#+begin_src shell :results raw
+kubectl delete rs frontend -n app-replicaset-tests
+kubectl delete -n app-replicaset-tests
+
+#+end_src
+
+
+
+**** Check if all ReplicaSet and Namespace is deleted
+#+begin_src shell :results raw
+kubectl get rs -A | grep frontend
+kubectl get namespace -A | grep replicaset
+#+end_src
 
 
 **** Delete audit events to check for success
@@ -364,9 +332,6 @@ select count(*) from testing.audit_event;
 #+begin_src sql-mode
 delete from testing.audit_event;
 #+end_src
-
-
-
 
 
 
