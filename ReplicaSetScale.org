@@ -196,14 +196,10 @@ spec:
 #+end_src
 
 
-
-
 *** Create a Namespace
 #+begin_src shell :results raw
 kubectl create namespace app-replicaset-tests
-
 #+end_src
-
 
 
 *** Creating a Replicaset
@@ -221,16 +217,10 @@ kubectl get rs -A | grep frontend
 #+end_src
 
 
-
-
-
 *** Scale the replicaset
 #+begin_src shell :results raw
 kubectl scale rs frontend -n app-replicaset-tests --replicas=5
 #+end_src
-
-
-
 
 
 
@@ -240,59 +230,34 @@ kubectl scale rs frontend -n app-replicaset-tests --replicas=5
 #+end_src
 
 
-
-
-
 *** Patch the ReplicaSet
-
 #+begin_src shell :results raw
 kubectl patch rs frontend -n app-replicaset-tests --patch "$(cat PatchReplicaSet_test.yaml)"
-
-
 #+end_src
 
 
 
 *** Look for the Patched ReplicaSet
-
 #+begin_src shell :results raw
 kubectl get rs -A | grep frontend
-
 #+end_src
-
-
 
 
 *** Get the SCALE for RS
 #+begin_src shell :results raw
 kubectl get --raw /apis/apps/v1/namespaces/app-replicaset-tests/replicasets/frontend/scale
-
-
 #+end_src
-
-
-*** Look for the SCALED ReplicaSet
-
-#+begin_src shell :results raw
-  kubectl get rs -A | grep frontend
-
-#+end_src
-
-
-
 
 
 *** Replace scale for RS
 #+begin_src shell :results raw
 kubectl -n app-replicaset-tests replace -f ReplaceReplicaSet_test.yaml
-
 #+end_src
 
 
 *** Look for the Replaced ReplicaSet
 #+begin_src shell :results raw
 kubectl get rs -A | grep frontend
-kubectl get namespace -A | grep replicaset
 #+end_src
 
 
@@ -302,14 +267,10 @@ Still not sure how to do this
 
 
 *** Cleanup
-
-
 #+begin_src shell :results raw
-kubectl delete rs frontend -n app-replicaset-tests
-kubectl delete -n app-replicaset-tests
-
+kubectl delete rs -n app-replicaset-tests --all
+kubectl delete namespace app-replicaset-tests
 #+end_src
-
 
 
 **** Check if all ReplicaSet and Namespace is deleted
