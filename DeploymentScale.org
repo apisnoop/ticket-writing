@@ -38,18 +38,13 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
  #+RESULTS: untested_stable_core_endpoints
  #+begin_SRC example
-                   endpoint                  |    kind
- --------------------------------------------+------------
-  replaceAppsV1NamespacedReplicaSetStatus    | ReplicaSet
-  readAppsV1NamespacedReplicaSetStatus       | ReplicaSet
-  patchAppsV1NamespacedReplicaSetStatus      | ReplicaSet
-  patchAppsV1NamespacedReplicaSet            | ReplicaSet
-  listAppsV1ReplicaSetForAllNamespaces       | ReplicaSet
-  deleteAppsV1CollectionNamespacedReplicaSet | ReplicaSet
-  replaceAppsV1NamespacedReplicaSetScale     | Scale
-  readAppsV1NamespacedReplicaSetScale        | Scale
-  patchAppsV1NamespacedReplicaSetScale       | Scale
- (9 rows)
+                 endpoint                 |    kind
+ -----------------------------------------+------------
+  replaceAppsV1NamespacedDeploymentStatus | Deployment
+  replaceAppsV1NamespacedDeploymentScale  | Scale
+  readAppsV1NamespacedDeploymentScale     | Scale
+  patchAppsV1NamespacedDeploymentScale    | Scale
+ (4 rows)
 
  #+end_SRC
 
@@ -103,8 +98,6 @@ spec:
 #This file is for the Deployment to be change with commands
 
 #+end_src
-
-
 
 
 #+begin_src yaml :tangle PatchDeployment_test.yaml
@@ -175,23 +168,17 @@ spec:
  ls -al /home/ii/ticket-writing | grep yaml
 #+end_src
 
-
-
 *** Create a Namespace
 #+begin_src shell :results raw
 kubectl create namespace app-deployment-tests
 #+end_src
 
 
-
 *** Creating a  Deployment
 
 #+begin_src shell :results raw
 kubectl apply -f Deployment_test.yaml --namespace=app-deployment-tests
-#kubectl apply -f PatchDeployment_test.yaml --namespace=app-deployment-tests
 #+end_src
-
-
 
 
 *** Finding the Deployment
@@ -208,11 +195,11 @@ kubectl scale deployment nginx-deployment -n app-deployment-tests --replicas=4
 
 
 
-
 *** look for scaled Deployment
 #+begin_src shell :results raw
   kubectl get deployment -A | grep nginx
 #+end_src
+
 
 
 *** Patch the ReplicaSet
@@ -222,15 +209,13 @@ kubectl patch deployment nginx-deployment -n app-deployment-tests --patch "$(cat
 
 
 
-
 *** Look for the Patched
 #+begin_src shell :results raw
 kubectl get deployment -A | grep nginx
 #+end_src
 
 
-
-*** Get the SCALE for RS - BUG!!
+*** Get the SCALE for Deployment
 #+begin_src shell :results raw
 #  kubectl get --raw /apis/apps/v1/namespaces/app-deployment-tests/deployment/nginx-deployment/scale
 kubectl get --raw=/apis/apps/v1/deployments
@@ -252,11 +237,10 @@ kubectl get deployment -A | grep nginx
 
 
 
-
 *** Cleanup
 #+begin_src shell :results raw
 kubectl delete deployment -n app-deployment-tests --all
-kubectl delete deployment nginx-deployments
+kubectl delete ns app-deployment-tests
 #+end_src
 
 
@@ -290,13 +274,29 @@ delete from testing.audit_event;
   select distinct  endpoint, useragent
                    -- to_char(to_timestamp(release_date::bigint), ' HH:MI') as time
   from testing.audit_event
-  where endpoint ilike '%ReplicaSet%'
+  where endpoint ilike '%Deployment%'
     -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
   and useragent like 'kubectl%'
   order by endpoint
   limit 100;
 
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+               endpoint               |                    useragent
+--------------------------------------+--------------------------------------------------
+ createAppsV1NamespacedDeployment     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ deleteAppsV1NamespacedDeployment     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1DeploymentForAllNamespaces | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1NamespacedDeployment       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ patchAppsV1NamespacedDeployment      | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ patchAppsV1NamespacedDeploymentScale | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ readAppsV1NamespacedDeployment       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ replaceAppsV1NamespacedDeployment    | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+(8 rows)
+
+#+end_SRC
 
 
 
