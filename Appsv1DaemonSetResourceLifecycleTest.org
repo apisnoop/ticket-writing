@@ -1,0 +1,392 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: AppsV1DaemonSet resource lifecycle test+promote - +5
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+
+* x1
+
+
+
+* Identifying an untested feature Using APISnoop :export:
+
+According to this APIsnoop query, there are still some remaining DaemonSet endpoints which are untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and kind like 'DaemonSet'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                   endpoint                  |                             path                              |   kind
+  -------------------------------------------+---------------------------------------------------------------+-----------
+   replaceAppsV1NamespacedDaemonSetStatus    | /apis/apps/v1/namespaces/{namespace}/daemonsets/{name}/status | DaemonSet
+   readAppsV1NamespacedDaemonSetStatus       | /apis/apps/v1/namespaces/{namespace}/daemonsets/{name}/status | DaemonSet
+   patchAppsV1NamespacedDaemonSetStatus      | /apis/apps/v1/namespaces/{namespace}/daemonsets/{name}/status | DaemonSet
+   listAppsV1DaemonSetForAllNamespaces       | /apis/apps/v1/daemonsets                                      | DaemonSet
+   deleteAppsV1CollectionNamespacedDaemonSet | /apis/apps/v1/namespaces/{namespace}/daemonsets               | DaemonSet
+  (5 rows)
+
+  #+end_SRC
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/apps/v1/daemonset.go][client-go - DaemonSet]]
+
+* The mock test                                                      :export:
+** Test outline
+1. Create a DaemonSet with a static label
+
+2. Patch the DaemonSet with a new Label and updated data
+
+3. Get the DaemonSet to ensure it's patched
+
+4. Update the DaemonSet
+
+5. List all DaemonSets in all Namespaces
+   find the DaemonSet(1)
+   ensure that the DaemonSet is found and is updated
+
+6. Delete Namespaced DaemonSet(1) via a Collection with a LabelSelector
+
+** Test the functionality in Go
+   #+begin_src go
+     package main
+
+     import (
+	   "context"
+       "encoding/json"
+       "fmt"
+       "flag"
+       "os"
+       v1 "k8s.io/api/core/v1"
+       appsv1 "k8s.io/api/apps/v1"
+       // "k8s.io/client-go/dynamic"
+       // "k8s.io/apimachinery/pkg/runtime/schema"
+       metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+       "k8s.io/client-go/kubernetes"
+       "k8s.io/apimachinery/pkg/types"
+       "k8s.io/client-go/tools/clientcmd"
+       watch "k8s.io/apimachinery/pkg/watch"
+     )
+
+     func main() {
+       // uses the current context in kubeconfig
+       kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+       flag.Parse()
+       config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+       if err != nil {
+           fmt.Println(err)
+           return
+       }
+       // make our work easier to find in the audit_event queries
+       config.UserAgent = "live-test-writing"
+       // creates the clientset
+       ClientSet, _ := kubernetes.NewForConfig(config)
+       // DynamicClientSet, _ := dynamic.NewForConfig(config)
+       // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
+       // TEST BEGINS HERE
+
+       testDaemonSetName := "testdaemonset"
+       testDaemonSetImageInitial := "nginx"
+       testDaemonSetImagePatch := "alpine"
+       testDaemonSetImageUpdate := "httpd"
+       testDaemonSetStaticLabel := map[string]string{"test-static": "true"}
+       testDaemonSetStaticLabelFlat := "test-static=true"
+       testDaemonSetSelector := map[string]string{"app": testDaemonSetName}
+       testNamespaceName := "default"
+
+       fmt.Println("creating a DaemonSet")
+       testDaemonSet := appsv1.DaemonSet{
+           ObjectMeta: metav1.ObjectMeta{
+               Name: testDaemonSetName,
+               Labels: testDaemonSetStaticLabel,
+           },
+           Spec: appsv1.DaemonSetSpec{
+               Selector: &metav1.LabelSelector{
+                   MatchLabels: testDaemonSetSelector,
+               },
+               Template: v1.PodTemplateSpec{
+                   ObjectMeta: metav1.ObjectMeta{
+                       Labels: testDaemonSetSelector,
+                   },
+                   Spec: v1.PodSpec{
+                       Containers: []v1.Container{{
+                           Name: testDaemonSetName,
+                           Image: testDaemonSetImageInitial,
+                       }},
+                   },
+               },
+           },
+       }
+       _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Create(context.TODO(), &testDaemonSet, metav1.CreateOptions{})
+
+       fmt.Println("watching for the DaemonSet to be added")
+       resourceWatchTimeoutSeconds := int64(180)
+       resourceWatch, err := ClientSet.AppsV1().DaemonSets(testNamespaceName).Watch(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat, TimeoutSeconds: &resourceWatchTimeoutSeconds})
+       if err != nil {
+           fmt.Println(err, "failed to setup watch on newly created DaemonSet")
+           return
+       }
+
+       resourceWatchChan := resourceWatch.ResultChan()
+       for watchEvent := range resourceWatchChan {
+           if watchEvent.Type == watch.Added {
+               break
+           }
+       }
+       fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
+       for watchEvent := range resourceWatchChan {
+           daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
+           if ok == false {
+               fmt.Println("failed to convert watchEvent.Object type")
+               return
+           }
+           if daemonset.Status.NumberReady == daemonset.Status.DesiredNumberScheduled {
+               break
+           }
+       }
+       defer func() {
+           fmt.Println("deleting the DaemonSet")
+           err = ClientSet.AppsV1().DaemonSets(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
+           if err != nil {
+               fmt.Println(err)
+               return
+           }
+           for watchEvent := range resourceWatchChan {
+               daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
+               if ok != true {
+                   fmt.Println("unable to convert watchEvent.Object type")
+                   return
+               }
+               if watchEvent.Type == watch.Deleted && daemonset.ObjectMeta.Name == testDaemonSetName {
+                   break
+               }
+           }
+       }()
+
+       fmt.Println("patching the DaemonSet")
+       resourcePatch, err := json.Marshal(map[string]interface{}{
+           "metadata": map[string]interface{}{
+               "labels": map[string]string{"test-resource": "patched"},
+           },
+           "spec": map[string]interface{}{
+               "template": map[string]interface{}{
+                   "spec": map[string]interface{}{
+                       "containers": []map[string]interface{}{{
+                           "name": testDaemonSetName,
+                           "image": testDaemonSetImagePatch,
+                           "command": []string{"/bin/sleep", "100000"},
+                       }},
+                   },
+               },
+           },
+       })
+       if err != nil {
+           fmt.Println(err, "failed marshal resource patch")
+           return
+       }
+       _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Patch(context.TODO(), testDaemonSetName, types.StrategicMergePatchType, []byte(resourcePatch), metav1.PatchOptions{})
+       if err != nil {
+           fmt.Println(err, "failed patch resource")
+           return
+       }
+       for watchEvent := range resourceWatchChan {
+          if watchEvent.Type == watch.Modified {
+              break
+          }
+       }
+       fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
+       for watchEvent := range resourceWatchChan {
+           daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
+           if ok == false {
+               fmt.Println("failed to convert watchEvent.Object type")
+               return
+           }
+           if daemonset.Status.NumberReady == daemonset.Status.DesiredNumberScheduled {
+               break
+           }
+       }
+
+       fmt.Println("fetching the DaemonSet")
+       ds, err := ClientSet.AppsV1().DaemonSets(testNamespaceName).Get(context.TODO(), testDaemonSetName, metav1.GetOptions{})
+       if err != nil {
+           fmt.Println(err, "failed fetch resource")
+           return
+       }
+       if ds.ObjectMeta.Labels["test-resource"] != "patched" {
+           fmt.Println("failed to patch resource - missing patched label")
+           return
+       }
+       if ds.Spec.Template.Spec.Containers[0].Image != testDaemonSetImagePatch {
+           fmt.Println("failed to patch resource - missing patched image")
+           return
+       }
+       if ds.Spec.Template.Spec.Containers[0].Command[0] != "/bin/sleep" {
+           fmt.Println("failed to patch resource - missing patched command")
+           return
+       }
+
+       fmt.Println("updating the DaemonSet")
+       dsUpdate := ds
+       dsUpdate.ObjectMeta.Labels["test-resource"] = "updated"
+       dsUpdate.Spec.Template.Spec.Containers[0].Image = testDaemonSetImageUpdate
+       dsUpdate.Spec.Template.Spec.Containers[0].Command = []string{}
+       _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Update(context.TODO(), dsUpdate,metav1.UpdateOptions{})
+       if err != nil {
+           fmt.Println(err, "failed to update resource")
+           return
+       }
+       fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
+       for watchEvent := range resourceWatchChan {
+           daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
+           if ok == false {
+               fmt.Println("failed to convert watchEvent.Object type")
+               return
+           }
+           if daemonset.Status.NumberReady == daemonset.Status.DesiredNumberScheduled {
+               break
+           }
+       }
+
+       fmt.Println("listing DaemonSets")
+       dss, err := ClientSet.AppsV1().DaemonSets("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
+       if err != nil {
+           fmt.Println(err, "failed to list DaemonSets")
+           return
+       }
+       if len(dss.Items) == 0 {
+           fmt.Println("there are no DaemonSets found")
+           return
+       }
+       for _, ds := range dss.Items {
+           if ds.ObjectMeta.Labels["test-resource"] != "updated" {
+               fmt.Println("failed to patch resource - missing updated label")
+               return
+           }
+           if ds.Spec.Template.Spec.Containers[0].Image != testDaemonSetImageUpdate {
+               fmt.Println("failed to patch resource - missing updated image")
+               return
+           }
+           if len(ds.Spec.Template.Spec.Containers[0].Command) != 0 {
+               fmt.Println("failed to patch resource - missing updated command")
+               return
+           }
+       }
+
+       // TEST ENDS HERE
+
+       // write test here
+       fmt.Println("[status] complete")
+
+     }
+   #+end_src
+
+   #+RESULTS:
+   #+begin_SRC example
+   creating a DaemonSet
+   watching for the DaemonSet to be added
+   watching for DaemonSet readiness count to be equal to the desired count
+   patching the DaemonSet
+   watching for DaemonSet readiness count to be equal to the desired count
+   fetching the DaemonSet
+   updating the DaemonSet
+   watching for DaemonSet readiness count to be equal to the desired count
+   listing DaemonSets
+   [status] complete
+   deleting the DaemonSet
+   #+end_SRC
+
+* Verifying increase it coverage with APISnoop                       :export:
+Discover useragents:
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select distinct useragent from audit_event where bucket='apisnoop' and useragent not like 'kube%' and useragent not like 'coredns%' and useragent not like 'kindnetd%' and useragent like 'live%';
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+       useragent     
+  -------------------
+   live-test-writing
+  (1 row)
+
+  #+end_SRC
+
+List endpoints hit by the test:
+#+begin_src sql-mode :exports both :session none
+select * from endpoints_hit_by_new_test where useragent like 'live%'; 
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+     useragent     |               operation_id                | hit_by_ete | hit_by_new_test 
+-------------------+-------------------------------------------+------------+-----------------
+ live-test-writing | createAppsV1NamespacedDaemonSet           | f          |               1
+ live-test-writing | deleteAppsV1CollectionNamespacedDaemonSet | f          |               1
+ live-test-writing | listAppsV1DaemonSetForAllNamespaces       | f          |               1
+ live-test-writing | listAppsV1NamespacedDaemonSet             | t          |               1
+ live-test-writing | patchAppsV1NamespacedDaemonSet            | f          |               1
+ live-test-writing | readAppsV1NamespacedDaemonSet             | f          |               1
+ live-test-writing | replaceAppsV1NamespacedDaemonSet          | f          |               1
+(7 rows)
+
+#+end_SRC
+
+Display endpoint coverage change:
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select * from projected_change_in_coverage;
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+     category    | total_endpoints | old_coverage | new_coverage | change_in_number 
+  ---------------+-----------------+--------------+--------------+------------------
+   test_coverage |             445 |          181 |          187 |                6
+  (1 row)
+
+  #+end_SRC
+
+* Final notes :export:
+If a test with these calls gets merged, **test coverage will go up by 6 points**
+
+This test is also created with the goal of conformance promotion.
+
+-----  
+/sig testing  
+
+/sig architecture  
+
+/area conformance  
+
+* Options :neverexport:
+** Delete all events after postgres initialization
+   #+begin_src sql-mode :eval never-export :exports both :session none
+   delete from audit_event where bucket = 'apisnoop' and job='live';
+   #+end_src
+
+   #+RESULTS:
+   #+begin_SRC example
+   DELETE 2875977
+   #+end_SRC
+
+* Open Tasks
+  Set any open tasks here, using org-todo
+** DONE Live Your Best Life
+* Footnotes                                                     :neverexport:
+  :PROPERTIES:
+  :CUSTOM_ID: footnotes
+  :END:
