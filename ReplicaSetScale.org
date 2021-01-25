@@ -196,6 +196,7 @@ spec:
 #+end_src
 
 
+
 *** Create a Namespace
 #+begin_src shell :results raw
 kubectl create namespace app-replicaset-tests
@@ -217,6 +218,20 @@ kubectl get rs -A | grep frontend
 #+end_src
 
 
+*** Replace scale for RS
+#+begin_src shell :results raw
+kubectl replace scale -n app-replicaset-tests -f ReplaceReplicaSet_test.yaml
+#+end_src
+
+
+
+*** Look for the Replaced ReplicaSet
+#+begin_src shell :results raw
+kubectl get rs -A | grep frontend
+#+end_src
+
+
+
 *** Scale the replicaset
 #+begin_src shell :results raw
 kubectl scale rs frontend -n app-replicaset-tests --replicas=5
@@ -224,10 +239,12 @@ kubectl scale rs frontend -n app-replicaset-tests --replicas=5
 
 
 
+
 *** look for scaled replicas
 #+begin_src shell :results raw
   kubectl get rs -A | grep frontend
 #+end_src
+
 
 
 *** Patch the ReplicaSet
@@ -243,22 +260,12 @@ kubectl get rs -A | grep frontend
 #+end_src
 
 
+
 *** Get the SCALE for RS
 #+begin_src shell :results raw
 kubectl get --raw /apis/apps/v1/namespaces/app-replicaset-tests/replicasets/frontend/scale
 #+end_src
 
-
-*** Replace scale for RS
-#+begin_src shell :results raw
-kubectl -n app-replicaset-tests replace -f ReplaceReplicaSet_test.yaml
-#+end_src
-
-
-*** Look for the Replaced ReplicaSet
-#+begin_src shell :results raw
-kubectl get rs -A | grep frontend
-#+end_src
 
 
 *** DeleteCollectionNamespacedRepicasets??
@@ -270,17 +277,19 @@ Still not sure how to do this
 #+begin_src shell :results raw
 kubectl delete rs -n app-replicaset-tests --all
 kubectl delete namespace app-replicaset-tests
+
 #+end_src
 
 
-**** Check if all ReplicaSet and Namespace is deleted
+*** Check if all ReplicaSet and Namespace is deleted
 #+begin_src shell :results raw
 kubectl get rs -A | grep frontend
 kubectl get namespace -A | grep replicaset
 #+end_src
 
 
-**** Delete audit events to check for success
+
+*** Delete audit events to check for success
 
 - Count all audit events
 #+begin_src sql-mode
@@ -308,6 +317,22 @@ delete from testing.audit_event;
   limit 100;
 
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+               endpoint               |                    useragent
+--------------------------------------+--------------------------------------------------
+ createAppsV1NamespacedReplicaSet     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ deleteAppsV1NamespacedReplicaSet     | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1NamespacedReplicaSet       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ listAppsV1ReplicaSetForAllNamespaces | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ patchAppsV1NamespacedReplicaSetScale | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ readAppsV1NamespacedReplicaSet       | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ readAppsV1NamespacedReplicaSetScale  | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+ replaceAppsV1NamespacedReplicaSet    | kubectl/v1.19.4 (linux/amd64) kubernetes/d360454
+(8 rows)
+
+#+end_SRC
 
 
 
