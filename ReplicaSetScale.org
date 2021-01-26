@@ -220,7 +220,7 @@ kubectl get rs -A | grep frontend
 
 *** Replace scale for RS
 #+begin_src shell :results raw
-kubectl replace scale -n app-replicaset-tests -f ReplaceReplicaSet_test.yaml
+kubectl replace scale --force -n app-replicaset-tests -f ReplaceReplicaSet_test.yaml
 #+end_src
 
 
@@ -355,13 +355,17 @@ readAppsV1NamespacedReplicaSetScale
        "context"
        "flag"
        "os"
-       v1 "k8s.io/api/core/v1"
+       //v1 "k8s.io/api/core/v1"
        // "k8s.io/client-go/dynamic"
        // "k8s.io/apimachinery/pkg/runtime/schema"
        metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
        "k8s.io/client-go/kubernetes"
        // "k8s.io/apimachinery/pkg/types"
        "k8s.io/client-go/tools/clientcmd"
+       "k8s.io/cli-runtime/go.mod"  //Added new
+     	e2ereplicaset "k8s.io/kubernetes/test/e2e/framework/replicaset" //Added new
+        klabels "k8s.io/apimachinery/pkg/labels" //Added new
+
      )
 
      func main() {
@@ -381,6 +385,72 @@ readAppsV1NamespacedReplicaSetScale
        // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
        // TEST BEGINS HERE
+
+                var ns string
+                var rs *appsv1.ReplicaSet
+                ns = f.Namespace.Name
+                rsName := "rs"
+                ,*(rs.Spec.Replicas) = 3
+                headlessSvcName := "test"
+                labels := map[string]string{
+                "foo": "bar",
+                "baz": "blah",
+                }
+
+                rc := e2ereplicaset.NewReplicaSet(rsName, ns, headlessSvcName, 1, nil, nil, labels)
+                setHTTPProbe(rs)
+                rc, err := c.AppsV1().ReplicaSets(ns).Create(context.TODO(), rs, metav1.CreateOptions{})
+                framework.ExpectNoError(err)
+                e2ereplicaset.WaitForReadyReplicaSet(c, *rs.Spec.Replicas, rs)
+                waitForStatus(c, rs)
+
+                scale, err := c.AppsV1().ReplicaSets(ns).GetScale(context.TODO(), rsName, metav1.GetOptions{})
+                if err != nil {
+                        framework.Failf("Failed to get scale subresource: %v", err)
+                }
+                framework.ExpectEqual(scale.Spec.Replicas, int32(1), "")
+                framework.ExpectEqual(scale.Status.Replicas, int32(1), "")
+
+                scale.ResourceVersion = "" // indicate the scale update should be unconditional
+                scale.Spec.Replicas = 2
+                scaleResult, err := c.AppsV1().ReplicaSets(ns).UpdateScale(context.TODO(), rsName, scale, metav1.UpdateOptions{})
+                if err != nil {
+                        framework.Failf("Failed to put scale subresource: %v", err)
+                }
+                framework.ExpectEqual(scaleResult.Spec.Replicas, int32(2), "")
+
+                rs, err = c.AppsV1().ReplicaSets(ns).Get(context.TODO(), rsName, metav1.GetOptions{})
+                if err != nil {
+                        framework.Failf("Failed to get statefulset resource: %v", err)
+                }
+                framework.ExpectEqual(*(rs.Spec.Replicas), int32(2), "")
+
+                scale.ResourceVersion = "" // indicate the scale update should be unconditional
+                scale.Spec.Replicas = 4    // should be 2 after "UpdateScale" operation, now Patch to 4
+                rsScalePatchPayload, err := json.Marshal(autoscalingv1.Scale{
+                        Spec: autoscalingv1.ScaleSpec{
+                                Replicas: scale.Spec.Replicas,
+                        },
+                })
+                framework.ExpectNoError(err, "Could not Marshal JSON for patch payload")
+
+                _, err = c.AppsV1().ReplicaSets(ns).Patch(context.TODO(), rsName, types.StrategicMergePatchType, []byte(ssScalePatchPayload), metav1.PatchOptions{}, "scale")
+                framework.ExpectNoError(err, "Failed to patch stateful set: %v", err)
+
+                ss, err = c.AppsV1().ReplicaSets(ns).Get(context.TODO(), rsName, metav1.GetOptions{})
+                framework.ExpectNoError(err, "Failed to get statefulset resource: %v", err)
+                framework.ExpectEqual(*(rs.Spec.Replicas), int32(4), "statefulset should have 4 replicas")
+                e2ereplicaset.WaitForStatusReplicas(c, rs, 4)
+        }
+
+
+
+
+   #+end_src
+
+   #+RESULTS: Mock Test In Go
+   #+begin_src go
+   #+end_src
 
        testPodName := "test-pod"
        testPodImage := "nginx"
@@ -430,8 +500,7 @@ readAppsV1NamespacedReplicaSetScale
        fmt.Println("[status] complete")
 
      }
-   #+end_src
-
+_______________________________________________________
    #+RESULTS:
    #+begin_example
    creating a Pod
