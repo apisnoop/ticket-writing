@@ -7,11 +7,6 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-
-* x1
-
-
-
 * Identifying an untested feature Using APISnoop :export:
 
 According to this APIsnoop query, there are still some remaining DaemonSet endpoints which are untested.
@@ -71,6 +66,10 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        "encoding/json"
        "flag"
        "fmt"
+       "time"
+
+       "k8s.io/client-go/tools/cache"
+
        appsv1 "k8s.io/api/apps/v1"
        v1 "k8s.io/api/core/v1"
        "os"
@@ -81,12 +80,18 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        watch "k8s.io/apimachinery/pkg/watch"
        "k8s.io/client-go/kubernetes"
        "k8s.io/client-go/tools/clientcmd"
+       watchtools "k8s.io/client-go/tools/watch"
+     )
+
+     const (
+       // dsReadyTimeout = 1 * time.Minute
+       dsReadyTimeout = 20 * time.Second
      )
 
      // helper function that is close to framework.ExpectNoError
-     func ExpectNoError(err error, msg string, e error) {
+     func ExpectNoError(err error, msg string, i interface{}) {
        if err != nil {
-         errMsg := msg + fmt.Sprintf(" %v\n", err)
+         errMsg := msg + fmt.Sprintf(" %v\n", i)
          os.Stderr.WriteString(errMsg)
          os.Exit(1)
        }
@@ -108,6 +113,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
        // TEST BEGINS HERE
 
+       ns := "default"
        testDaemonSetName := "testdaemonset"
        testDaemonSetImageInitial := "nginx"
        testDaemonSetImagePatch := "alpine"
@@ -116,6 +122,16 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        testDaemonSetStaticLabelFlat := "test-static=true"
        testDaemonSetSelector := map[string]string{"app": testDaemonSetName}
        testNamespaceName := "default"
+
+       w := &cache.ListWatch{
+         WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+           options.LabelSelector = testDaemonSetStaticLabelFlat
+           return ClientSet.AppsV1().DaemonSets(ns).Watch(context.TODO(), options)
+         },
+       }
+
+       dsList, err := ClientSet.AppsV1().DaemonSets("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
+       ExpectNoError(err, "failed to list DaemonSets", err)
 
        fmt.Println("creating a DaemonSet")
        testDaemonSet := appsv1.DaemonSet{
@@ -141,6 +157,29 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
          },
        }
        _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Create(context.TODO(), &testDaemonSet, metav1.CreateOptions{})
+       ExpectNoError(err, "failed to create the DaemonSet. %v", err)
+
+       fmt.Println("watching for the DaemonSet to be added")
+       ctx, cancel := context.WithTimeout(context.Background(), dsReadyTimeout)
+       defer cancel()
+       _, err = watchtools.Until(ctx, dsList.ResourceVersion, w, func(event watch.Event) (bool, error) {
+         if ds, ok := event.Object.(*appsv1.DaemonSet); ok {
+           found := ds.ObjectMeta.Name == testDaemonSet.ObjectMeta.Name &&
+             ds.ObjectMeta.Namespace == ns &&
+             ds.ObjectMeta.Labels["test-static"] == "true"
+           if !found {
+             fmt.Printf("observed DaemonSet %v in namespace %v with labels: %v\n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+             return false, nil
+           }
+           fmt.Printf("Found DaemonSet %v in namespace %v with labels: %#v \n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+           return found, nil
+         }
+         fmt.Printf("Observed event: %+v\n", event.Object)
+         return false, nil
+       })
+       // ExpectNoError(err, "failed to locate DaemonSet %v in namespace %v", testDaemonSet.ObjectMeta.Name, ns)
+       ExpectNoError(err, "failed to locate DaemonSet %v in namespace default", testDaemonSet.ObjectMeta.Name)
+       fmt.Printf("DaemonSet %s created\n", testDaemonSetName)
 
        fmt.Println("watching for the DaemonSet to be added")
        resourceWatchTimeoutSeconds := int64(180)
@@ -288,6 +327,9 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    #+RESULTS:
    #+begin_src go
    creating a DaemonSet
+   watching for the DaemonSet to be added
+   Found DaemonSet testdaemonset in namespace default with labels: map[string]string{"test-static":"true"}
+   DaemonSet testdaemonset created
    watching for the DaemonSet to be added
    watching for DaemonSet readiness count to be equal to the desired count
    patching the DaemonSet
