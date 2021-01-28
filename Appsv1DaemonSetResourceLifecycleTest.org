@@ -68,6 +68,8 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        "fmt"
        "time"
 
+       utilrand "k8s.io/apimachinery/pkg/util/rand"
+
        "k8s.io/client-go/tools/cache"
 
        appsv1 "k8s.io/api/apps/v1"
@@ -114,7 +116,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        // TEST BEGINS HERE
 
        ns := "default"
-       testDaemonSetName := "testdaemonset"
+       testDaemonSetName := "test-ds-" + utilrand.String(5)
        testDaemonSetImageInitial := "nginx"
        testDaemonSetImagePatch := "alpine"
        testDaemonSetImageUpdate := "httpd"
@@ -166,12 +168,14 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
          if ds, ok := event.Object.(*appsv1.DaemonSet); ok {
            found := ds.ObjectMeta.Name == testDaemonSet.ObjectMeta.Name &&
              ds.ObjectMeta.Namespace == ns &&
+             ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
              ds.ObjectMeta.Labels["test-static"] == "true"
            if !found {
              fmt.Printf("observed DaemonSet %v in namespace %v with labels: %v\n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
              return false, nil
            }
            fmt.Printf("Found DaemonSet %v in namespace %v with labels: %#v \n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+           fmt.Printf("Status: %#v \n", ds.Status)
            return found, nil
          }
          fmt.Printf("Observed event: %+v\n", event.Object)
@@ -187,22 +191,6 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        ExpectNoError(err, "failed to setup watch on newly created DaemonSet. %v", err)
 
        resourceWatchChan := resourceWatch.ResultChan()
-       for watchEvent := range resourceWatchChan {
-         if watchEvent.Type == watch.Added {
-           break
-         }
-       }
-       fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
-       for watchEvent := range resourceWatchChan {
-         daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
-         if ok == false {
-           fmt.Println("failed to convert watchEvent.Object type")
-           return
-         }
-         if daemonset.Status.NumberReady == daemonset.Status.DesiredNumberScheduled {
-           break
-         }
-       }
 
        fmt.Println("patching the DaemonSet")
        resourcePatch, err := json.Marshal(map[string]interface{}{
@@ -225,11 +213,13 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        ExpectNoError(err, "failed to marshal resource patch. %v", err)
        _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Patch(context.TODO(), testDaemonSetName, types.StrategicMergePatchType, []byte(resourcePatch), metav1.PatchOptions{})
        ExpectNoError(err, "failed to patch resource. %v", err)
+
        for watchEvent := range resourceWatchChan {
          if watchEvent.Type == watch.Modified {
            break
          }
        }
+
        fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
        for watchEvent := range resourceWatchChan {
          daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
@@ -341,10 +331,10 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    #+begin_src go
    creating a DaemonSet
    watching for the DaemonSet to be added
-   Found DaemonSet testdaemonset in namespace default with labels: map[string]string{"test-static":"true"}
-   DaemonSet testdaemonset created
+   Found DaemonSet test-ds-xzhs5 in namespace default with labels: map[string]string{"test-static":"true"}
+   Status: v1.DaemonSetStatus{CurrentNumberScheduled:0, NumberMisscheduled:0, DesiredNumberScheduled:0, NumberReady:0, ObservedGeneration:0, UpdatedNumberScheduled:0, NumberAvailable:0, NumberUnavailable:0, CollisionCount:(*int32)(nil), Conditions:[]v1.DaemonSetCondition(nil)}
+   DaemonSet test-ds-xzhs5 created
    watching for the DaemonSet to be added
-   watching for DaemonSet readiness count to be equal to the desired count
    patching the DaemonSet
    watching for DaemonSet readiness count to be equal to the desired count
    fetching the DaemonSet
@@ -359,10 +349,8 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    Observed event: MODIFIED
    Observed event: MODIFIED
    Observed event: MODIFIED
-   Observed event: MODIFIED
-   Observed event: MODIFIED
-   Found DaemonSet testdaemonset in namespace default with labels: map[test-resource:updated test-static:true]
-   DaemonSet testdaemonset deleted
+   Found DaemonSet test-ds-xzhs5 in namespace default with labels: map[test-resource:updated test-static:true]
+   DaemonSet test-ds-xzhs5 deleted
    [status] complete
    #+end_src
 
