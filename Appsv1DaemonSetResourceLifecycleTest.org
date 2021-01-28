@@ -203,22 +203,6 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
            break
          }
        }
-       defer func() {
-         fmt.Println("deleting the DaemonSet")
-         err = ClientSet.AppsV1().DaemonSets(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
-         ExpectNoError(err, "failed to delete the DaemonSet. %v", err)
-
-         for watchEvent := range resourceWatchChan {
-           daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
-           if ok != true {
-             fmt.Println("unable to convert watchEvent.Object type")
-             return
-           }
-           if watchEvent.Type == watch.Deleted && daemonset.ObjectMeta.Name == testDaemonSetName {
-             break
-           }
-         }
-       }()
 
        fmt.Println("patching the DaemonSet")
        resourcePatch, err := json.Marshal(map[string]interface{}{
@@ -318,6 +302,35 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
          }
        }
 
+       fmt.Println("deleting the DaemonSet")
+       err = ClientSet.AppsV1().DaemonSets(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
+       ExpectNoError(err, "failed to delete the DaemonSet. %v", err)
+
+       fmt.Println("watching for the DaemonSet to be deleted")
+       ctx, cancel = context.WithTimeout(context.Background(), dsReadyTimeout)
+       defer cancel()
+       _, err = watchtools.Until(ctx, dsList.ResourceVersion, w, func(event watch.Event) (bool, error) {
+         switch event.Type {
+         case watch.Deleted:
+           if ds, ok := event.Object.(*appsv1.DaemonSet); ok {
+             found := ds.ObjectMeta.Name == testDaemonSet.ObjectMeta.Name &&
+               ds.ObjectMeta.Namespace == ns &&
+               ds.ObjectMeta.Labels["test-static"] == "true"
+             if !found {
+               fmt.Printf("observed DaemonSet %v in namespace %v with labels: %v \n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+               return false, nil
+             }
+             fmt.Printf("Found DaemonSet %v in namespace %v with labels: %v \n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+             return found, nil
+           }
+         default:
+           fmt.Printf("Observed event: %+v \n", event.Type)
+         }
+         return false, nil
+       })
+       ExpectNoError(err, "failed to delete DaemonSet %v in namespace default", testDaemonSet.ObjectMeta.Name)
+       fmt.Printf("DaemonSet %s deleted\n", testDaemonSetName)
+
        // TEST ENDS HERE
        fmt.Println("[status] complete")
 
@@ -338,8 +351,19 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    updating the DaemonSet
    watching for DaemonSet readiness count to be equal to the desired count
    listing DaemonSets
-   [status] complete
    deleting the DaemonSet
+   watching for the DaemonSet to be deleted
+   Observed event: ADDED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Found DaemonSet testdaemonset in namespace default with labels: map[test-resource:updated test-static:true]
+   DaemonSet testdaemonset deleted
+   [status] complete
    #+end_src
 
 * Verifying increase it coverage with APISnoop                       :export:
