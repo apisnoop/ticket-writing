@@ -37,6 +37,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
   #+end_SRC
 
+
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/apps/v1/daemonset.go][client-go - DaemonSet]]
@@ -67,6 +68,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        "flag"
        "fmt"
        "time"
+       "os/exec"
 
        utilrand "k8s.io/apimachinery/pkg/util/rand"
 
@@ -86,7 +88,6 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
      )
 
      const (
-       // dsReadyTimeout = 1 * time.Minute
        dsReadyTimeout = 20 * time.Second
      )
 
@@ -97,6 +98,16 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
          os.Stderr.WriteString(errMsg)
          os.Exit(1)
        }
+     }
+
+     // logging time and cluster resources at different stages of the test
+     func logTimeKubectl() {
+       fmt.Println("===============")
+       t, _ := exec.Command("date", "+%H:%M:%S.%3N").Output()
+       log, _ := exec.Command("kubectl", "-n", "default", "get", "all", "-owide").Output()
+       fmt.Printf("%s\n", t)
+       fmt.Printf("%s\n", log)
+       fmt.Println("===============")
      }
 
      func main() {
@@ -134,6 +145,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
        dsList, err := ClientSet.AppsV1().DaemonSets("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
        ExpectNoError(err, "failed to list DaemonSets", err)
+       logTimeKubectl()
 
        fmt.Println("creating a DaemonSet")
        testDaemonSet := appsv1.DaemonSet{
@@ -185,12 +197,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        ExpectNoError(err, "failed to locate DaemonSet %v in namespace default", testDaemonSet.ObjectMeta.Name)
        fmt.Printf("DaemonSet %s created\n", testDaemonSetName)
 
-       fmt.Println("watching for the DaemonSet to be added")
-       resourceWatchTimeoutSeconds := int64(180)
-       resourceWatch, err := ClientSet.AppsV1().DaemonSets(testNamespaceName).Watch(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat, TimeoutSeconds: &resourceWatchTimeoutSeconds})
-       ExpectNoError(err, "failed to setup watch on newly created DaemonSet. %v", err)
-
-       resourceWatchChan := resourceWatch.ResultChan()
+       logTimeKubectl()
 
        fmt.Println("patching the DaemonSet")
        resourcePatch, err := json.Marshal(map[string]interface{}{
@@ -214,23 +221,33 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Patch(context.TODO(), testDaemonSetName, types.StrategicMergePatchType, []byte(resourcePatch), metav1.PatchOptions{})
        ExpectNoError(err, "failed to patch resource. %v", err)
 
-       for watchEvent := range resourceWatchChan {
-         if watchEvent.Type == watch.Modified {
-           break
-         }
-       }
+       logTimeKubectl()
 
-       fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
-       for watchEvent := range resourceWatchChan {
-         daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
-         if ok == false {
-           fmt.Println("failed to convert watchEvent.Object type")
-           return
+       fmt.Println("watching for the DaemonSet to be patched")
+       ctx, cancel = context.WithTimeout(context.Background(), dsReadyTimeout)
+       defer cancel()
+       _, err = watchtools.Until(ctx, dsList.ResourceVersion, w, func(event watch.Event) (bool, error) {
+         switch event.Type {
+         case watch.Modified:
+           if ds, ok := event.Object.(*appsv1.DaemonSet); ok {
+             found := ds.ObjectMeta.Name == testDaemonSet.ObjectMeta.Name &&
+               ds.ObjectMeta.Namespace == ns &&
+               ds.ObjectMeta.Labels["test-resource"] == "patched"
+             if !found {
+               fmt.Printf("observed DaemonSet %v in namespace %v with labels: %v \n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+               return false, nil
+             }
+             fmt.Printf("Found DaemonSet %v in namespace %v with labels: %v \n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
+             return found, nil
+           }
+         default:
+           fmt.Printf("Observed event: %+v \n", event.Type)
          }
-         if daemonset.Status.NumberReady == daemonset.Status.DesiredNumberScheduled {
-           break
-         }
-       }
+         return false, nil
+       })
+       ExpectNoError(err, "failed to delete DaemonSet %v in namespace default", testDaemonSet.ObjectMeta.Name)
+       fmt.Printf("DaemonSet %s patched\n", testDaemonSetName)
+       logTimeKubectl()
 
        fmt.Println("fetching the DaemonSet")
        ds, err := ClientSet.AppsV1().DaemonSets(testNamespaceName).Get(context.TODO(), testDaemonSetName, metav1.GetOptions{})
@@ -257,18 +274,6 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Update(context.TODO(), dsUpdate, metav1.UpdateOptions{})
        ExpectNoError(err, "failed to update resource. %v", err)
 
-       fmt.Println("watching for DaemonSet readiness count to be equal to the desired count")
-       for watchEvent := range resourceWatchChan {
-         daemonset, ok := watchEvent.Object.(*appsv1.DaemonSet)
-         if ok == false {
-           fmt.Println("failed to convert watchEvent.Object type")
-           return
-         }
-         if daemonset.Status.NumberReady == daemonset.Status.DesiredNumberScheduled {
-           break
-         }
-       }
-
        fmt.Println("listing DaemonSets")
        dss, err := ClientSet.AppsV1().DaemonSets("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
        ExpectNoError(err, "failed to list DaemonSets. %v", err)
@@ -291,6 +296,8 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
            return
          }
        }
+
+       logTimeKubectl()
 
        fmt.Println("deleting the DaemonSet")
        err = ClientSet.AppsV1().DaemonSets(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
@@ -328,19 +335,85 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    #+end_src
 
    #+RESULTS:
-   #+begin_src go
+   #+begin_SRC example
+   ===============
+   12:32:35.532
+
+   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+
+   ===============
    creating a DaemonSet
    watching for the DaemonSet to be added
-   Found DaemonSet test-ds-xzhs5 in namespace default with labels: map[string]string{"test-static":"true"}
+   Found DaemonSet test-ds-8gz6z in namespace default with labels: map[string]string{"test-static":"true"}
    Status: v1.DaemonSetStatus{CurrentNumberScheduled:0, NumberMisscheduled:0, DesiredNumberScheduled:0, NumberReady:0, ObservedGeneration:0, UpdatedNumberScheduled:0, NumberAvailable:0, NumberUnavailable:0, CollisionCount:(*int32)(nil), Conditions:[]v1.DaemonSetCondition(nil)}
-   DaemonSet test-ds-xzhs5 created
-   watching for the DaemonSet to be added
+   DaemonSet test-ds-8gz6z created
+   ===============
+   12:32:35.655
+
+   NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
+   pod/test-ds-8gz6z-z6swc   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+
+   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
+   daemonset.apps/test-ds-8gz6z   1         1         0       1            0           <none>          0s    test-ds-8gz6z   nginx    app=test-ds-8gz6z
+
+   ===============
    patching the DaemonSet
-   watching for DaemonSet readiness count to be equal to the desired count
+   ===============
+   12:32:35.766
+
+   NAME                      READY   STATUS        RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
+   pod/test-ds-8gz6z-z6swc   0/1     Terminating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+
+   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
+   daemonset.apps/test-ds-8gz6z   1         1         0       0            0           <none>          0s    test-ds-8gz6z   alpine   app=test-ds-8gz6z
+
+   ===============
+   watching for the DaemonSet to be patched
+   Observed event: ADDED
+   observed DaemonSet test-ds-8gz6z in namespace default with labels: map[test-static:true]
+   Found DaemonSet test-ds-8gz6z in namespace default with labels: map[test-resource:patched test-static:true]
+   DaemonSet test-ds-8gz6z patched
+   ===============
+   12:32:35.849
+
+   NAME                      READY   STATUS        RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
+   pod/test-ds-8gz6z-z6swc   0/1     Terminating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+
+   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
+   daemonset.apps/test-ds-8gz6z   1         1         0       0            0           <none>          0s    test-ds-8gz6z   alpine   app=test-ds-8gz6z
+
+   ===============
    fetching the DaemonSet
    updating the DaemonSet
-   watching for DaemonSet readiness count to be equal to the desired count
    listing DaemonSets
+   ===============
+   12:32:35.917
+
+   NAME                      READY   STATUS        RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
+   pod/test-ds-8gz6z-z6swc   0/1     Terminating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+
+   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
+   daemonset.apps/test-ds-8gz6z   1         1         0       0            0           <none>          0s    test-ds-8gz6z   httpd    app=test-ds-8gz6z
+
+   ===============
    deleting the DaemonSet
    watching for the DaemonSet to be deleted
    Observed event: ADDED
@@ -349,62 +422,43 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    Observed event: MODIFIED
    Observed event: MODIFIED
    Observed event: MODIFIED
-   Found DaemonSet test-ds-xzhs5 in namespace default with labels: map[test-resource:updated test-static:true]
-   DaemonSet test-ds-xzhs5 deleted
+   Found DaemonSet test-ds-8gz6z in namespace default with labels: map[test-resource:updated test-static:true]
+   DaemonSet test-ds-8gz6z deleted
    [status] complete
-   #+end_src
+   #+end_SRC
 
-* Verifying increase it coverage with APISnoop                       :export:
-Discover useragents:
-  #+begin_src sql-mode :eval never-export :exports both :session none
-    select distinct useragent from audit_event where bucket='apisnoop' and useragent not like 'kube%' and useragent not like 'coredns%' and useragent not like 'kindnetd%' and useragent like 'live%';
-  #+end_src
+* Verifying increase it coverage with APISnoop :export:
+** Discover useragents:
 
-  #+RESULTS:
-  #+begin_SRC example
-       useragent     
-  -------------------
-   live-test-writing
-  (1 row)
+#+begin_src sql-mode :eval never-export :exports both :session none
+  select distinct useragent from audit_event
+   where bucket='apisnoop' and useragent not like 'kube%' and useragent not like 'coredns%' and useragent not like 'kindnetd%' and useragent like 'live%';
+#+end_src
 
-  #+end_SRC
+** List endpoints hit by the test:
 
-List endpoints hit by the test:
 #+begin_src sql-mode :exports both :session none
-select * from endpoints_hit_by_new_test where useragent like 'live%'; 
+select * from testing.endpoints_hit_by_new_test where useragent like 'live%';
+#+end_src
+
+** Display endpoint coverage change:
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+  select * from testing.projected_change_in_coverage;
 #+end_src
 
 #+RESULTS:
 #+begin_SRC example
-     useragent     |               operation_id                | hit_by_ete | hit_by_new_test 
--------------------+-------------------------------------------+------------+-----------------
- live-test-writing | createAppsV1NamespacedDaemonSet           | f          |               1
- live-test-writing | deleteAppsV1CollectionNamespacedDaemonSet | f          |               1
- live-test-writing | listAppsV1DaemonSetForAllNamespaces       | f          |               1
- live-test-writing | listAppsV1NamespacedDaemonSet             | t          |               1
- live-test-writing | patchAppsV1NamespacedDaemonSet            | f          |               1
- live-test-writing | readAppsV1NamespacedDaemonSet             | f          |               1
- live-test-writing | replaceAppsV1NamespacedDaemonSet          | f          |               1
-(7 rows)
+   category    | total_endpoints | old_coverage | new_coverage | change_in_number
+---------------+-----------------+--------------+--------------+------------------
+ test_coverage |             873 |          357 |          359 |                2
+(1 row)
 
 #+end_SRC
 
-Display endpoint coverage change:
-  #+begin_src sql-mode :eval never-export :exports both :session none
-    select * from projected_change_in_coverage;
-  #+end_src
-
-  #+RESULTS:
-  #+begin_SRC example
-     category    | total_endpoints | old_coverage | new_coverage | change_in_number 
-  ---------------+-----------------+--------------+--------------+------------------
-   test_coverage |             445 |          181 |          187 |                6
-  (1 row)
-
-  #+end_SRC
 
 * Final notes :export:
-If a test with these calls gets merged, **test coverage will go up by 6 points**
+If a test with these calls gets merged, **test coverage will go up by 5 points**
 
 This test is also created with the goal of conformance promotion.
 
@@ -420,11 +474,6 @@ This test is also created with the goal of conformance promotion.
    #+begin_src sql-mode :eval never-export :exports both :session none
    delete from audit_event where bucket = 'apisnoop' and job='live';
    #+end_src
-
-   #+RESULTS:
-   #+begin_SRC example
-   DELETE 2875977
-   #+end_SRC
 
 * Open Tasks
   Set any open tasks here, using org-todo
