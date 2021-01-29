@@ -37,7 +37,6 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
   #+end_SRC
 
-
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/apps/v1/daemonset.go][client-go - DaemonSet]]
@@ -126,14 +125,17 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
        // TEST BEGINS HERE
 
+	   // f.Namespace.Name
        ns := "default"
        testDaemonSetName := "test-ds-" + utilrand.String(5)
-       testDaemonSetImageInitial := "nginx"
-       testDaemonSetImagePatch := "alpine"
-       testDaemonSetImageUpdate := "httpd"
+       // TODO update to standard e2e conformance images
+       testDaemonSetImageInitial := "gcr.io/kubernetes-e2e-test-images/test-webserver:1.0"
+       testDaemonSetImagePatch := "gcr.io/kubernetes-e2e-test-images/agnhost:2.26"
+       testDaemonSetImageUpdate := "gcr.io/kubernetes-e2e-test-images/echoserver:2.2"
        testDaemonSetStaticLabel := map[string]string{"test-static": "true"}
        testDaemonSetStaticLabelFlat := "test-static=true"
        testDaemonSetSelector := map[string]string{"app": testDaemonSetName}
+	   // f.Namespace.Name
        testNamespaceName := "default"
 
        w := &cache.ListWatch{
@@ -197,6 +199,9 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        ExpectNoError(err, "failed to locate DaemonSet %v in namespace default", testDaemonSet.ObjectMeta.Name)
        fmt.Printf("DaemonSet %s created\n", testDaemonSetName)
 
+       // TODO create watch for daemonset pods with testDaemonSetSelector
+	   //      wait for Pods to be ready
+
        logTimeKubectl()
 
        fmt.Println("patching the DaemonSet")
@@ -210,7 +215,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
                "containers": []map[string]interface{}{{
                  "name":    testDaemonSetName,
                  "image":   testDaemonSetImagePatch,
-                 "command": []string{"/bin/sleep", "100000"},
+                 "command": []string{"/agnhost", "pause"},
                }},
              },
            },
@@ -261,7 +266,8 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
          fmt.Println("failed to patch resource - missing patched image")
          return
        }
-       if ds.Spec.Template.Spec.Containers[0].Command[0] != "/bin/sleep" {
+       if ds.Spec.Template.Spec.Containers[0].Command[0] != "/agnhost" &&
+          ds.Spec.Template.Spec.Containers[0].Command[1] != "sleep" {
          fmt.Println("failed to patch resource - missing patched command")
          return
        }
@@ -337,97 +343,76 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    #+RESULTS:
    #+begin_SRC example
    ===============
-   12:32:35.532
+   14:49:47.101
 
    NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
 
    ===============
    creating a DaemonSet
    watching for the DaemonSet to be added
-   Found DaemonSet test-ds-8gz6z in namespace default with labels: map[string]string{"test-static":"true"}
+   Found DaemonSet test-ds-btm7v in namespace default with labels: map[string]string{"test-static":"true"}
    Status: v1.DaemonSetStatus{CurrentNumberScheduled:0, NumberMisscheduled:0, DesiredNumberScheduled:0, NumberReady:0, ObservedGeneration:0, UpdatedNumberScheduled:0, NumberAvailable:0, NumberUnavailable:0, CollisionCount:(*int32)(nil), Conditions:[]v1.DaemonSetCondition(nil)}
-   DaemonSet test-ds-8gz6z created
+   DaemonSet test-ds-btm7v created
    ===============
-   12:32:35.655
+   14:49:47.246
 
    NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-8gz6z-z6swc   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+   pod/test-ds-btm7v-fbzx8   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
 
    NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
 
-   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
-   daemonset.apps/test-ds-8gz6z   1         1         0       1            0           <none>          0s    test-ds-8gz6z   nginx    app=test-ds-8gz6z
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
+   daemonset.apps/test-ds-btm7v   1         1         0       1            0           <none>          0s    test-ds-btm7v   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-btm7v
 
    ===============
    patching the DaemonSet
    ===============
-   12:32:35.766
+   14:49:47.340
 
-   NAME                      READY   STATUS        RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-8gz6z-z6swc   0/1     Terminating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+   NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
+   pod/test-ds-btm7v-fbzx8   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
 
    NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
 
-   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
-   daemonset.apps/test-ds-8gz6z   1         1         0       0            0           <none>          0s    test-ds-8gz6z   alpine   app=test-ds-8gz6z
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
+   daemonset.apps/test-ds-btm7v   1         1         0       1            0           <none>          0s    test-ds-btm7v   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-btm7v
 
    ===============
    watching for the DaemonSet to be patched
    Observed event: ADDED
-   observed DaemonSet test-ds-8gz6z in namespace default with labels: map[test-static:true]
-   Found DaemonSet test-ds-8gz6z in namespace default with labels: map[test-resource:patched test-static:true]
-   DaemonSet test-ds-8gz6z patched
+   observed DaemonSet test-ds-btm7v in namespace default with labels: map[test-static:true]
+   Found DaemonSet test-ds-btm7v in namespace default with labels: map[test-resource:patched test-static:true]
+   DaemonSet test-ds-btm7v patched
    ===============
-   12:32:35.849
+   14:49:47.424
 
-   NAME                      READY   STATUS        RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-8gz6z-z6swc   0/1     Terminating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+   NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
+   pod/test-ds-btm7v-fbzx8   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
 
    NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
+   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
 
-   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
-   daemonset.apps/test-ds-8gz6z   1         1         0       0            0           <none>          0s    test-ds-8gz6z   alpine   app=test-ds-8gz6z
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
+   daemonset.apps/test-ds-btm7v   1         1         0       1            0           <none>          0s    test-ds-btm7v   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-btm7v
 
    ===============
    fetching the DaemonSet
-   updating the DaemonSet
-   listing DaemonSets
-   ===============
-   12:32:35.917
-
-   NAME                      READY   STATUS        RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-8gz6z-z6swc   0/1     Terminating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
-
-   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   4h27m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     4h27m   <none>
-
-   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES   SELECTOR
-   daemonset.apps/test-ds-8gz6z   1         1         0       0            0           <none>          0s    test-ds-8gz6z   httpd    app=test-ds-8gz6z
-
-   ===============
-   deleting the DaemonSet
-   watching for the DaemonSet to be deleted
-   Observed event: ADDED
-   Observed event: MODIFIED
-   Observed event: MODIFIED
-   Observed event: MODIFIED
-   Observed event: MODIFIED
-   Observed event: MODIFIED
-   Found DaemonSet test-ds-8gz6z in namespace default with labels: map[test-resource:updated test-static:true]
-   DaemonSet test-ds-8gz6z deleted
-   [status] complete
+   failed to patch resource - missing patched image
    #+end_SRC
 
 * Verifying increase it coverage with APISnoop :export:
+** TODO Reset stats :
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+#+end_src
+
 ** Discover useragents:
 
 #+begin_src sql-mode :eval never-export :exports both :session none
@@ -437,9 +422,24 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
 ** List endpoints hit by the test:
 
-#+begin_src sql-mode :exports both :session none
-select * from testing.endpoints_hit_by_new_test where useragent like 'live%';
+#+begin_src sql-mode :eval never-export :exports both :session none
+select * from testing.endpoint_hit_by_new_test where useragent like 'live%';
 #+end_src
+
+#+RESULTS:
+#+begin_SRC example
+     useragent     |                 endpoint                  | hit_by_ete | hit_by_new_test
+-------------------+-------------------------------------------+------------+-----------------
+ live-test-writing | createAppsV1NamespacedDaemonSet           | t          |             240
+ live-test-writing | deleteAppsV1CollectionNamespacedDaemonSet | f          |             240
+ live-test-writing | listAppsV1DaemonSetForAllNamespaces       | f          |             482
+ live-test-writing | listAppsV1NamespacedDaemonSet             | t          |            1110
+ live-test-writing | patchAppsV1NamespacedDaemonSet            | t          |             240
+ live-test-writing | readAppsV1NamespacedDaemonSet             | t          |             240
+ live-test-writing | replaceAppsV1NamespacedDaemonSet          | t          |             240
+(7 rows)
+
+#+end_SRC
 
 ** Display endpoint coverage change:
 
@@ -455,7 +455,6 @@ select * from testing.endpoints_hit_by_new_test where useragent like 'live%';
 (1 row)
 
 #+end_SRC
-
 
 * Final notes :export:
 If a test with these calls gets merged, **test coverage will go up by 5 points**
