@@ -37,6 +37,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
   #+end_SRC
 
+
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
 - [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/apps/v1/daemonset.go][client-go - DaemonSet]]
@@ -76,7 +77,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        appsv1 "k8s.io/api/apps/v1"
        v1 "k8s.io/api/core/v1"
        "os"
-       // "k8s.io/client-go/dynamic"
+       "k8s.io/client-go/dynamic"
        // "k8s.io/apimachinery/pkg/runtime/schema"
        metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
        "k8s.io/apimachinery/pkg/types"
@@ -100,12 +101,16 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
      }
 
      // logging time and cluster resources at different stages of the test
-     func logTimeKubectl() {
+     func logTimeKubectl(i int) {
        fmt.Println("===============")
        t, _ := exec.Command("date", "+%H:%M:%S.%3N").Output()
-       log, _ := exec.Command("kubectl", "-n", "default", "get", "all", "-owide").Output()
        fmt.Printf("%s\n", t)
+       log, _ := exec.Command("kubectl", "-n", "default", "get", "all", "-owide").Output()
        fmt.Printf("%s\n", log)
+        if i != 1 {
+		  log2, _ := exec.Command("kubectl", "-n", "default", "get", "all", "-ojson").Output()
+          fmt.Printf("%s\n", log2)
+       }
        fmt.Println("===============")
      }
 
@@ -120,7 +125,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        config.UserAgent = "live-test-writing"
        // creates the clientset
        ClientSet, _ := kubernetes.NewForConfig(config)
-       // DynamicClientSet, _ := dynamic.NewForConfig(config)
+       DynamicClientSet, _ := dynamic.NewForConfig(config)
        // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
        // TEST BEGINS HERE
@@ -135,6 +140,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        testDaemonSetStaticLabel := map[string]string{"test-static": "true"}
        testDaemonSetStaticLabelFlat := "test-static=true"
        testDaemonSetSelector := map[string]string{"app": testDaemonSetName}
+	   // testDaemonSetNodeLabel := map[string]string{"daemonsetStatusTest": "true"}
 	   // f.Namespace.Name
        testNamespaceName := "default"
 
@@ -147,7 +153,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
 
        dsList, err := ClientSet.AppsV1().DaemonSets("").List(context.TODO(), metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
        ExpectNoError(err, "failed to list DaemonSets", err)
-       logTimeKubectl()
+       logTimeKubectl(1)
 
        fmt.Println("creating a DaemonSet")
        testDaemonSet := appsv1.DaemonSet{
@@ -164,6 +170,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
                Labels: testDaemonSetSelector,
              },
              Spec: v1.PodSpec{
+			   // NodeSelector: testDaemonSetNodeLabel,
                Containers: []v1.Container{{
                  Name:  testDaemonSetName,
                  Image: testDaemonSetImageInitial,
@@ -183,6 +190,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
            found := ds.ObjectMeta.Name == testDaemonSet.ObjectMeta.Name &&
              ds.ObjectMeta.Namespace == ns &&
              ds.Status.NumberReady == ds.Status.DesiredNumberScheduled &&
+			 ds.Status.UpdatedNumberScheduled == 1 &&
              ds.ObjectMeta.Labels["test-static"] == "true"
            if !found {
              fmt.Printf("observed DaemonSet %v in namespace %v with labels: %v\n", ds.ObjectMeta.Name, ds.ObjectMeta.Namespace, ds.ObjectMeta.Labels)
@@ -202,7 +210,21 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        // TODO create watch for daemonset pods with testDaemonSetSelector
 	   //      wait for Pods to be ready
 
-       logTimeKubectl()
+       logTimeKubectl(1)
+
+	   // https://apisnoop.cncf.io/1.21.0/stable/apps/readAppsV1NamespacedDaemonSetStatus
+       // readAppsV1NamespacedDaemonSetStatus
+       // GET /apis/apps/v1/namespaces/{namespace}/replicasets/{name}/status
+
+       gvr := v1.SchemeGroupVersion.WithResource("daemonset")
+	   // _, err = DynamicClientSet.Resource(gvr).Namespace(ns).Get(context.TODO(), testDaemonSetName, metav1.GetOptions{}, "status")
+	   x := DynamicClientSet.Resource(gvr).Namespace(ns) // .Get(context.TODO(), testDaemonSetName, metav1.GetOptions{}, "status")
+       fmt.Printf("x: %#v\n\n", x)
+
+       // ExpectNoError(err, "failed to read the DaemonSetStatus.", err)
+
+
+       logTimeKubectl(1)
 
        fmt.Println("patching the DaemonSet")
        resourcePatch, err := json.Marshal(map[string]interface{}{
@@ -226,7 +248,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        _, err = ClientSet.AppsV1().DaemonSets(testNamespaceName).Patch(context.TODO(), testDaemonSetName, types.StrategicMergePatchType, []byte(resourcePatch), metav1.PatchOptions{})
        ExpectNoError(err, "failed to patch resource. %v", err)
 
-       logTimeKubectl()
+       logTimeKubectl(2)
 
        fmt.Println("watching for the DaemonSet to be patched")
        ctx, cancel = context.WithTimeout(context.Background(), dsReadyTimeout)
@@ -252,7 +274,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
        })
        ExpectNoError(err, "failed to delete DaemonSet %v in namespace default", testDaemonSet.ObjectMeta.Name)
        fmt.Printf("DaemonSet %s patched\n", testDaemonSetName)
-       logTimeKubectl()
+       logTimeKubectl(1)
 
        fmt.Println("fetching the DaemonSet")
        ds, err := ClientSet.AppsV1().DaemonSets(testNamespaceName).Get(context.TODO(), testDaemonSetName, metav1.GetOptions{})
@@ -303,7 +325,7 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
          }
        }
 
-       logTimeKubectl()
+       logTimeKubectl(1)
 
        fmt.Println("deleting the DaemonSet")
        err = ClientSet.AppsV1().DaemonSets(testNamespaceName).DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: testDaemonSetStaticLabelFlat})
@@ -343,69 +365,704 @@ According to this APIsnoop query, there are still some remaining DaemonSet endpo
    #+RESULTS:
    #+begin_SRC example
    ===============
-   14:49:47.101
+   16:09:34.828
 
-   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
+   NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)     AGE   SELECTOR
+   service/csi-packet-pd   ClusterIP   10.104.89.22   <none>        12345/TCP   8h    app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP     8h    <none>
 
    ===============
    creating a DaemonSet
    watching for the DaemonSet to be added
-   Found DaemonSet test-ds-btm7v in namespace default with labels: map[string]string{"test-static":"true"}
-   Status: v1.DaemonSetStatus{CurrentNumberScheduled:0, NumberMisscheduled:0, DesiredNumberScheduled:0, NumberReady:0, ObservedGeneration:0, UpdatedNumberScheduled:0, NumberAvailable:0, NumberUnavailable:0, CollisionCount:(*int32)(nil), Conditions:[]v1.DaemonSetCondition(nil)}
-   DaemonSet test-ds-btm7v created
+   observed DaemonSet test-ds-bng5f in namespace default with labels: map[test-static:true]
+   observed DaemonSet test-ds-bng5f in namespace default with labels: map[test-static:true]
+   Found DaemonSet test-ds-bng5f in namespace default with labels: map[string]string{"test-static":"true"}
+   Status: v1.DaemonSetStatus{CurrentNumberScheduled:1, NumberMisscheduled:0, DesiredNumberScheduled:1, NumberReady:1, ObservedGeneration:1, UpdatedNumberScheduled:1, NumberAvailable:1, NumberUnavailable:0, CollisionCount:(*int32)(nil), Conditions:[]v1.DaemonSetCondition(nil)}
+   DaemonSet test-ds-bng5f created
    ===============
-   14:49:47.246
+   16:09:37.079
 
-   NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-btm7v-fbzx8   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+   NAME                      READY   STATUS    RESTARTS   AGE   IP             NODE                         NOMINATED NODE   READINESS GATES
+   pod/test-ds-bng5f-2vpwq   1/1     Running   0          3s    192.168.0.17   heyste-control-plane-2j8kt   <none>           <none>
 
-   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
+   NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)     AGE   SELECTOR
+   service/csi-packet-pd   ClusterIP   10.104.89.22   <none>        12345/TCP   8h    app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP     8h    <none>
 
    NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
-   daemonset.apps/test-ds-btm7v   1         1         0       1            0           <none>          0s    test-ds-btm7v   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-btm7v
+   daemonset.apps/test-ds-bng5f   1         1         1       1            1           <none>          3s    test-ds-bng5f   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-bng5f
+
+   ===============
+   x: &dynamic.dynamicResourceClient{client:(*dynamic.dynamicClient)(0xc0001373b8), namespace:"default", resource:schema.GroupVersionResource{Group:"", Version:"v1", Resource:"daemonset"}}
+
+   ===============
+   16:09:37.166
+
+   NAME                      READY   STATUS    RESTARTS   AGE   IP             NODE                         NOMINATED NODE   READINESS GATES
+   pod/test-ds-bng5f-2vpwq   1/1     Running   0          3s    192.168.0.17   heyste-control-plane-2j8kt   <none>           <none>
+
+   NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)     AGE   SELECTOR
+   service/csi-packet-pd   ClusterIP   10.104.89.22   <none>        12345/TCP   8h    app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP     8h    <none>
+
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
+   daemonset.apps/test-ds-bng5f   1         1         1       1            1           <none>          3s    test-ds-bng5f   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-bng5f
 
    ===============
    patching the DaemonSet
    ===============
-   14:49:47.340
+   16:09:37.236
 
-   NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-btm7v-fbzx8   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+   NAME                      READY   STATUS        RESTARTS   AGE   IP             NODE                         NOMINATED NODE   READINESS GATES
+   pod/test-ds-bng5f-2vpwq   1/1     Terminating   0          3s    192.168.0.17   heyste-control-plane-2j8kt   <none>           <none>
 
-   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
+   NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)     AGE   SELECTOR
+   service/csi-packet-pd   ClusterIP   10.104.89.22   <none>        12345/TCP   8h    app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP     8h    <none>
 
-   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
-   daemonset.apps/test-ds-btm7v   1         1         0       1            0           <none>          0s    test-ds-btm7v   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-btm7v
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                           SELECTOR
+   daemonset.apps/test-ds-bng5f   1         1         1       0            1           <none>          3s    test-ds-bng5f   gcr.io/kubernetes-e2e-test-images/agnhost:2.26   app=test-ds-bng5f
+
+   {
+       "apiVersion": "v1",
+       "items": [
+           {
+               "apiVersion": "v1",
+               "kind": "Pod",
+               "metadata": {
+                   "creationTimestamp": "2021-02-04T03:09:34Z",
+                   "deletionGracePeriodSeconds": 30,
+                   "deletionTimestamp": "2021-02-04T03:10:07Z",
+                   "generateName": "test-ds-bng5f-",
+                   "labels": {
+                       "app": "test-ds-bng5f",
+                       "controller-revision-hash": "699d8ff5b4",
+                       "pod-template-generation": "1"
+                   },
+                   "managedFields": [
+                       {
+                           "apiVersion": "v1",
+                           "fieldsType": "FieldsV1",
+                           "fieldsV1": {
+                               "f:metadata": {
+                                   "f:generateName": {},
+                                   "f:labels": {
+                                       ".": {},
+                                       "f:app": {},
+                                       "f:controller-revision-hash": {},
+                                       "f:pod-template-generation": {}
+                                   },
+                                   "f:ownerReferences": {
+                                       ".": {},
+                                       "k:{\"uid\":\"f9a3a01e-eadc-43ae-aacb-0cd11ab8df80\"}": {
+                                           ".": {},
+                                           "f:apiVersion": {},
+                                           "f:blockOwnerDeletion": {},
+                                           "f:controller": {},
+                                           "f:kind": {},
+                                           "f:name": {},
+                                           "f:uid": {}
+                                       }
+                                   }
+                               },
+                               "f:spec": {
+                                   "f:affinity": {
+                                       ".": {},
+                                       "f:nodeAffinity": {
+                                           ".": {},
+                                           "f:requiredDuringSchedulingIgnoredDuringExecution": {
+                                               ".": {},
+                                               "f:nodeSelectorTerms": {}
+                                           }
+                                       }
+                                   },
+                                   "f:containers": {
+                                       "k:{\"name\":\"test-ds-bng5f\"}": {
+                                           ".": {},
+                                           "f:image": {},
+                                           "f:imagePullPolicy": {},
+                                           "f:name": {},
+                                           "f:resources": {},
+                                           "f:terminationMessagePath": {},
+                                           "f:terminationMessagePolicy": {}
+                                       }
+                                   },
+                                   "f:dnsPolicy": {},
+                                   "f:enableServiceLinks": {},
+                                   "f:restartPolicy": {},
+                                   "f:schedulerName": {},
+                                   "f:securityContext": {},
+                                   "f:terminationGracePeriodSeconds": {},
+                                   "f:tolerations": {}
+                               }
+                           },
+                           "manager": "kube-controller-manager",
+                           "operation": "Update",
+                           "time": "2021-02-04T03:09:34Z"
+                       },
+                       {
+                           "apiVersion": "v1",
+                           "fieldsType": "FieldsV1",
+                           "fieldsV1": {
+                               "f:status": {
+                                   "f:conditions": {
+                                       "k:{\"type\":\"ContainersReady\"}": {
+                                           ".": {},
+                                           "f:lastProbeTime": {},
+                                           "f:lastTransitionTime": {},
+                                           "f:status": {},
+                                           "f:type": {}
+                                       },
+                                       "k:{\"type\":\"Initialized\"}": {
+                                           ".": {},
+                                           "f:lastProbeTime": {},
+                                           "f:lastTransitionTime": {},
+                                           "f:status": {},
+                                           "f:type": {}
+                                       },
+                                       "k:{\"type\":\"Ready\"}": {
+                                           ".": {},
+                                           "f:lastProbeTime": {},
+                                           "f:lastTransitionTime": {},
+                                           "f:status": {},
+                                           "f:type": {}
+                                       }
+                                   },
+                                   "f:containerStatuses": {},
+                                   "f:hostIP": {},
+                                   "f:phase": {},
+                                   "f:podIP": {},
+                                   "f:podIPs": {
+                                       ".": {},
+                                       "k:{\"ip\":\"192.168.0.17\"}": {
+                                           ".": {},
+                                           "f:ip": {}
+                                       }
+                                   },
+                                   "f:startTime": {}
+                               }
+                           },
+                           "manager": "kubelet",
+                           "operation": "Update",
+                           "time": "2021-02-04T03:09:37Z"
+                       }
+                   ],
+                   "name": "test-ds-bng5f-2vpwq",
+                   "namespace": "default",
+                   "ownerReferences": [
+                       {
+                           "apiVersion": "apps/v1",
+                           "blockOwnerDeletion": true,
+                           "controller": true,
+                           "kind": "DaemonSet",
+                           "name": "test-ds-bng5f",
+                           "uid": "f9a3a01e-eadc-43ae-aacb-0cd11ab8df80"
+                       }
+                   ],
+                   "resourceVersion": "76695",
+                   "uid": "f95bb8df-6c93-45fa-ac22-47f692de6dd3"
+               },
+               "spec": {
+                   "affinity": {
+                       "nodeAffinity": {
+                           "requiredDuringSchedulingIgnoredDuringExecution": {
+                               "nodeSelectorTerms": [
+                                   {
+                                       "matchFields": [
+                                           {
+                                               "key": "metadata.name",
+                                               "operator": "In",
+                                               "values": [
+                                                   "heyste-control-plane-2j8kt"
+                                               ]
+                                           }
+                                       ]
+                                   }
+                               ]
+                           }
+                       }
+                   },
+                   "containers": [
+                       {
+                           "image": "gcr.io/kubernetes-e2e-test-images/test-webserver:1.0",
+                           "imagePullPolicy": "IfNotPresent",
+                           "name": "test-ds-bng5f",
+                           "resources": {},
+                           "terminationMessagePath": "/dev/termination-log",
+                           "terminationMessagePolicy": "File",
+                           "volumeMounts": [
+                               {
+                                   "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                                   "name": "default-token-khdvf",
+                                   "readOnly": true
+                               }
+                           ]
+                       }
+                   ],
+                   "dnsPolicy": "ClusterFirst",
+                   "enableServiceLinks": true,
+                   "nodeName": "heyste-control-plane-2j8kt",
+                   "preemptionPolicy": "PreemptLowerPriority",
+                   "priority": 0,
+                   "restartPolicy": "Always",
+                   "schedulerName": "default-scheduler",
+                   "securityContext": {},
+                   "serviceAccount": "default",
+                   "serviceAccountName": "default",
+                   "terminationGracePeriodSeconds": 30,
+                   "tolerations": [
+                       {
+                           "effect": "NoExecute",
+                           "key": "node.kubernetes.io/not-ready",
+                           "operator": "Exists"
+                       },
+                       {
+                           "effect": "NoExecute",
+                           "key": "node.kubernetes.io/unreachable",
+                           "operator": "Exists"
+                       },
+                       {
+                           "effect": "NoSchedule",
+                           "key": "node.kubernetes.io/disk-pressure",
+                           "operator": "Exists"
+                       },
+                       {
+                           "effect": "NoSchedule",
+                           "key": "node.kubernetes.io/memory-pressure",
+                           "operator": "Exists"
+                       },
+                       {
+                           "effect": "NoSchedule",
+                           "key": "node.kubernetes.io/pid-pressure",
+                           "operator": "Exists"
+                       },
+                       {
+                           "effect": "NoSchedule",
+                           "key": "node.kubernetes.io/unschedulable",
+                           "operator": "Exists"
+                       }
+                   ],
+                   "volumes": [
+                       {
+                           "name": "default-token-khdvf",
+                           "secret": {
+                               "defaultMode": 420,
+                               "secretName": "default-token-khdvf"
+                           }
+                       }
+                   ]
+               },
+               "status": {
+                   "conditions": [
+                       {
+                           "lastProbeTime": null,
+                           "lastTransitionTime": "2021-02-04T03:09:34Z",
+                           "status": "True",
+                           "type": "Initialized"
+                       },
+                       {
+                           "lastProbeTime": null,
+                           "lastTransitionTime": "2021-02-04T03:09:37Z",
+                           "status": "True",
+                           "type": "Ready"
+                       },
+                       {
+                           "lastProbeTime": null,
+                           "lastTransitionTime": "2021-02-04T03:09:37Z",
+                           "status": "True",
+                           "type": "ContainersReady"
+                       },
+                       {
+                           "lastProbeTime": null,
+                           "lastTransitionTime": "2021-02-04T03:09:34Z",
+                           "status": "True",
+                           "type": "PodScheduled"
+                       }
+                   ],
+                   "containerStatuses": [
+                       {
+                           "containerID": "docker://370dfa1877c90029e6b66707b5eb8324e5860c96e8b7b442740f406d544d7eeb",
+                           "image": "gcr.io/kubernetes-e2e-test-images/test-webserver:1.0",
+                           "imageID": "docker-pullable://gcr.io/kubernetes-e2e-test-images/test-webserver@sha256:7f93d6e32798ff28bc6289254d0c2867fe2c849c8e46edc50f8624734309812e",
+                           "lastState": {},
+                           "name": "test-ds-bng5f",
+                           "ready": true,
+                           "restartCount": 0,
+                           "started": true,
+                           "state": {
+                               "running": {
+                                   "startedAt": "2021-02-04T03:09:35Z"
+                               }
+                           }
+                       }
+                   ],
+                   "hostIP": "10.88.190.3",
+                   "phase": "Running",
+                   "podIP": "192.168.0.17",
+                   "podIPs": [
+                       {
+                           "ip": "192.168.0.17"
+                       }
+                   ],
+                   "qosClass": "BestEffort",
+                   "startTime": "2021-02-04T03:09:34Z"
+               }
+           },
+           {
+               "apiVersion": "v1",
+               "kind": "Service",
+               "metadata": {
+                   "annotations": {
+                       "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"csi-packet-pd\"},\"name\":\"csi-packet-pd\",\"namespace\":\"default\"},\"spec\":{\"ports\":[{\"name\":\"dummy\",\"port\":12345}],\"selector\":{\"app\":\"csi-packet-pd\"}}}\n"
+                   },
+                   "creationTimestamp": "2021-02-03T18:25:51Z",
+                   "labels": {
+                       "app": "csi-packet-pd"
+                   },
+                   "managedFields": [
+                       {
+                           "apiVersion": "v1",
+                           "fieldsType": "FieldsV1",
+                           "fieldsV1": {
+                               "f:metadata": {
+                                   "f:annotations": {
+                                       ".": {},
+                                       "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                                   },
+                                   "f:labels": {
+                                       ".": {},
+                                       "f:app": {}
+                                   }
+                               },
+                               "f:spec": {
+                                   "f:ports": {
+                                       ".": {},
+                                       "k:{\"port\":12345,\"protocol\":\"TCP\"}": {
+                                           ".": {},
+                                           "f:name": {},
+                                           "f:port": {},
+                                           "f:protocol": {},
+                                           "f:targetPort": {}
+                                       }
+                                   },
+                                   "f:selector": {
+                                       ".": {},
+                                       "f:app": {}
+                                   },
+                                   "f:sessionAffinity": {},
+                                   "f:type": {}
+                               }
+                           },
+                           "manager": "kubectl-client-side-apply",
+                           "operation": "Update",
+                           "time": "2021-02-03T18:25:51Z"
+                       }
+                   ],
+                   "name": "csi-packet-pd",
+                   "namespace": "default",
+                   "resourceVersion": "278",
+                   "uid": "0526b468-3dc2-40aa-b136-d9db2ab83a74"
+               },
+               "spec": {
+                   "clusterIP": "10.104.89.22",
+                   "clusterIPs": [
+                       "10.104.89.22"
+                   ],
+                   "ports": [
+                       {
+                           "name": "dummy",
+                           "port": 12345,
+                           "protocol": "TCP",
+                           "targetPort": 12345
+                       }
+                   ],
+                   "selector": {
+                       "app": "csi-packet-pd"
+                   },
+                   "sessionAffinity": "None",
+                   "type": "ClusterIP"
+               },
+               "status": {
+                   "loadBalancer": {}
+               }
+           },
+           {
+               "apiVersion": "v1",
+               "kind": "Service",
+               "metadata": {
+                   "creationTimestamp": "2021-02-03T18:25:46Z",
+                   "labels": {
+                       "component": "apiserver",
+                       "provider": "kubernetes"
+                   },
+                   "managedFields": [
+                       {
+                           "apiVersion": "v1",
+                           "fieldsType": "FieldsV1",
+                           "fieldsV1": {
+                               "f:metadata": {
+                                   "f:labels": {
+                                       ".": {},
+                                       "f:component": {},
+                                       "f:provider": {}
+                                   }
+                               },
+                               "f:spec": {
+                                   "f:clusterIP": {},
+                                   "f:ipFamilyPolicy": {},
+                                   "f:ports": {
+                                       ".": {},
+                                       "k:{\"port\":443,\"protocol\":\"TCP\"}": {
+                                           ".": {},
+                                           "f:name": {},
+                                           "f:port": {},
+                                           "f:protocol": {},
+                                           "f:targetPort": {}
+                                       }
+                                   },
+                                   "f:sessionAffinity": {},
+                                   "f:type": {}
+                               }
+                           },
+                           "manager": "kube-apiserver",
+                           "operation": "Update",
+                           "time": "2021-02-03T18:25:46Z"
+                       }
+                   ],
+                   "name": "kubernetes",
+                   "namespace": "default",
+                   "resourceVersion": "196",
+                   "uid": "6023afec-df7d-40a4-9fe9-521067b7c681"
+               },
+               "spec": {
+                   "clusterIP": "10.96.0.1",
+                   "clusterIPs": [
+                       "10.96.0.1"
+                   ],
+                   "ports": [
+                       {
+                           "name": "https",
+                           "port": 443,
+                           "protocol": "TCP",
+                           "targetPort": 6443
+                       }
+                   ],
+                   "sessionAffinity": "None",
+                   "type": "ClusterIP"
+               },
+               "status": {
+                   "loadBalancer": {}
+               }
+           },
+           {
+               "apiVersion": "apps/v1",
+               "kind": "DaemonSet",
+               "metadata": {
+                   "annotations": {
+                       "deprecated.daemonset.template.generation": "2"
+                   },
+                   "creationTimestamp": "2021-02-04T03:09:34Z",
+                   "generation": 2,
+                   "labels": {
+                       "test-resource": "patched",
+                       "test-static": "true"
+                   },
+                   "managedFields": [
+                       {
+                           "apiVersion": "apps/v1",
+                           "fieldsType": "FieldsV1",
+                           "fieldsV1": {
+                               "f:status": {
+                                   "f:currentNumberScheduled": {},
+                                   "f:desiredNumberScheduled": {},
+                                   "f:numberAvailable": {},
+                                   "f:numberReady": {},
+                                   "f:observedGeneration": {}
+                               }
+                           },
+                           "manager": "kube-controller-manager",
+                           "operation": "Update",
+                           "time": "2021-02-04T03:09:37Z"
+                       },
+                       {
+                           "apiVersion": "apps/v1",
+                           "fieldsType": "FieldsV1",
+                           "fieldsV1": {
+                               "f:metadata": {
+                                   "f:annotations": {
+                                       ".": {},
+                                       "f:deprecated.daemonset.template.generation": {}
+                                   },
+                                   "f:labels": {
+                                       ".": {},
+                                       "f:test-resource": {},
+                                       "f:test-static": {}
+                                   }
+                               },
+                               "f:spec": {
+                                   "f:revisionHistoryLimit": {},
+                                   "f:selector": {},
+                                   "f:template": {
+                                       "f:metadata": {
+                                           "f:labels": {
+                                               ".": {},
+                                               "f:app": {}
+                                           }
+                                       },
+                                       "f:spec": {
+                                           "f:containers": {
+                                               "k:{\"name\":\"test-ds-bng5f\"}": {
+                                                   ".": {},
+                                                   "f:command": {},
+                                                   "f:image": {},
+                                                   "f:imagePullPolicy": {},
+                                                   "f:name": {},
+                                                   "f:resources": {},
+                                                   "f:terminationMessagePath": {},
+                                                   "f:terminationMessagePolicy": {}
+                                               }
+                                           },
+                                           "f:dnsPolicy": {},
+                                           "f:restartPolicy": {},
+                                           "f:schedulerName": {},
+                                           "f:securityContext": {},
+                                           "f:terminationGracePeriodSeconds": {}
+                                       }
+                                   },
+                                   "f:updateStrategy": {
+                                       "f:rollingUpdate": {
+                                           ".": {},
+                                           "f:maxUnavailable": {}
+                                       },
+                                       "f:type": {}
+                                   }
+                               }
+                           },
+                           "manager": "live-test-writing",
+                           "operation": "Update",
+                           "time": "2021-02-04T03:09:37Z"
+                       }
+                   ],
+                   "name": "test-ds-bng5f",
+                   "namespace": "default",
+                   "resourceVersion": "76697",
+                   "uid": "f9a3a01e-eadc-43ae-aacb-0cd11ab8df80"
+               },
+               "spec": {
+                   "revisionHistoryLimit": 10,
+                   "selector": {
+                       "matchLabels": {
+                           "app": "test-ds-bng5f"
+                       }
+                   },
+                   "template": {
+                       "metadata": {
+                           "creationTimestamp": null,
+                           "labels": {
+                               "app": "test-ds-bng5f"
+                           }
+                       },
+                       "spec": {
+                           "containers": [
+                               {
+                                   "command": [
+                                       "/agnhost",
+                                       "pause"
+                                   ],
+                                   "image": "gcr.io/kubernetes-e2e-test-images/agnhost:2.26",
+                                   "imagePullPolicy": "IfNotPresent",
+                                   "name": "test-ds-bng5f",
+                                   "resources": {},
+                                   "terminationMessagePath": "/dev/termination-log",
+                                   "terminationMessagePolicy": "File"
+                               }
+                           ],
+                           "dnsPolicy": "ClusterFirst",
+                           "restartPolicy": "Always",
+                           "schedulerName": "default-scheduler",
+                           "securityContext": {},
+                           "terminationGracePeriodSeconds": 30
+                       }
+                   },
+                   "updateStrategy": {
+                       "rollingUpdate": {
+                           "maxUnavailable": 1
+                       },
+                       "type": "RollingUpdate"
+                   }
+               },
+               "status": {
+                   "currentNumberScheduled": 1,
+                   "desiredNumberScheduled": 1,
+                   "numberAvailable": 1,
+                   "numberMisscheduled": 0,
+                   "numberReady": 1,
+                   "observedGeneration": 2
+               }
+           }
+       ],
+       "kind": "List",
+       "metadata": {
+           "resourceVersion": "",
+           "selfLink": ""
+       }
+   }
 
    ===============
    watching for the DaemonSet to be patched
    Observed event: ADDED
-   observed DaemonSet test-ds-btm7v in namespace default with labels: map[test-static:true]
-   Found DaemonSet test-ds-btm7v in namespace default with labels: map[test-resource:patched test-static:true]
-   DaemonSet test-ds-btm7v patched
+   observed DaemonSet test-ds-bng5f in namespace default with labels: map[test-static:true]
+   observed DaemonSet test-ds-bng5f in namespace default with labels: map[test-static:true]
+   Found DaemonSet test-ds-bng5f in namespace default with labels: map[test-resource:patched test-static:true]
+   DaemonSet test-ds-bng5f patched
    ===============
-   14:49:47.424
+   16:09:37.363
 
-   NAME                      READY   STATUS              RESTARTS   AGE   IP       NODE                      NOMINATED NODE   READINESS GATES
-   pod/test-ds-btm7v-fbzx8   0/1     ContainerCreating   0          0s    <none>   e2e-control-plane-kmm5q   <none>           <none>
+   NAME                      READY   STATUS        RESTARTS   AGE   IP             NODE                         NOMINATED NODE   READINESS GATES
+   pod/test-ds-bng5f-2vpwq   1/1     Terminating   0          3s    192.168.0.17   heyste-control-plane-2j8kt   <none>           <none>
 
-   NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE     SELECTOR
-   service/csi-packet-pd   ClusterIP   10.110.201.122   <none>        12345/TCP   6h44m   app=csi-packet-pd
-   service/kubernetes      ClusterIP   10.96.0.1        <none>        443/TCP     6h44m   <none>
+   NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)     AGE   SELECTOR
+   service/csi-packet-pd   ClusterIP   10.104.89.22   <none>        12345/TCP   8h    app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP     8h    <none>
 
-   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                                 SELECTOR
-   daemonset.apps/test-ds-btm7v   1         1         0       1            0           <none>          0s    test-ds-btm7v   gcr.io/kubernetes-e2e-test-images/test-webserver:1.0   app=test-ds-btm7v
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                           SELECTOR
+   daemonset.apps/test-ds-bng5f   1         1         1       0            1           <none>          3s    test-ds-bng5f   gcr.io/kubernetes-e2e-test-images/agnhost:2.26   app=test-ds-bng5f
 
    ===============
    fetching the DaemonSet
-   failed to patch resource - missing patched image
+   updating the DaemonSet
+   listing DaemonSets
+   ===============
+   16:09:37.433
+
+   NAME                      READY   STATUS        RESTARTS   AGE   IP             NODE                         NOMINATED NODE   READINESS GATES
+   pod/test-ds-bng5f-2vpwq   1/1     Terminating   0          3s    192.168.0.17   heyste-control-plane-2j8kt   <none>           <none>
+
+   NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)     AGE   SELECTOR
+   service/csi-packet-pd   ClusterIP   10.104.89.22   <none>        12345/TCP   8h    app=csi-packet-pd
+   service/kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP     8h    <none>
+
+   NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES                                             SELECTOR
+   daemonset.apps/test-ds-bng5f   1         1         1       0            1           <none>          3s    test-ds-bng5f   gcr.io/kubernetes-e2e-test-images/echoserver:2.2   app=test-ds-bng5f
+
+   ===============
+   deleting the DaemonSet
+   watching for the DaemonSet to be deleted
+   Observed event: ADDED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Observed event: MODIFIED
+   Found DaemonSet test-ds-bng5f in namespace default with labels: map[test-resource:updated test-static:true]
+   DaemonSet test-ds-bng5f deleted
+   [status] complete
    #+end_SRC
+
+
+
+
 
 * Verifying increase it coverage with APISnoop :export:
 ** TODO Reset stats :
@@ -431,15 +1088,16 @@ select * from testing.endpoint_hit_by_new_test where useragent like 'live%';
      useragent     |                 endpoint                  | hit_by_ete | hit_by_new_test
 -------------------+-------------------------------------------+------------+-----------------
  live-test-writing | createAppsV1NamespacedDaemonSet           | t          |             240
- live-test-writing | deleteAppsV1CollectionNamespacedDaemonSet | f          |             240
- live-test-writing | listAppsV1DaemonSetForAllNamespaces       | f          |             482
- live-test-writing | listAppsV1NamespacedDaemonSet             | t          |            1110
- live-test-writing | patchAppsV1NamespacedDaemonSet            | t          |             240
- live-test-writing | readAppsV1NamespacedDaemonSet             | t          |             240
- live-test-writing | replaceAppsV1NamespacedDaemonSet          | t          |             240
+ live-test-writing | deleteAppsV1CollectionNamespacedDaemonSet | f          |             200
+ live-test-writing | listAppsV1DaemonSetForAllNamespaces       | f          |             440
+ live-test-writing | listAppsV1NamespacedDaemonSet             | t          |             958
+ live-test-writing | patchAppsV1NamespacedDaemonSet            | t          |             200
+ live-test-writing | readAppsV1NamespacedDaemonSet             | t          |             210
+ live-test-writing | replaceAppsV1NamespacedDaemonSet          | t          |             200
 (7 rows)
 
 #+end_SRC
+
 
 ** Display endpoint coverage change:
 
@@ -451,7 +1109,7 @@ select * from testing.endpoint_hit_by_new_test where useragent like 'live%';
 #+begin_SRC example
    category    | total_endpoints | old_coverage | new_coverage | change_in_number
 ---------------+-----------------+--------------+--------------+------------------
- test_coverage |             873 |          357 |          359 |                2
+ test_coverage |             873 |          365 |          367 |                2
 (1 row)
 
 #+end_SRC
