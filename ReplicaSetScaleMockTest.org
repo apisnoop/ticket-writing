@@ -51,7 +51,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 - [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-replicaset-v1-apps][Kubernetes API Reference Docs]]
 - [[https://pkg.go.dev/k8s.io/kubernetes/test/e2e/framework/replicaset][client-go - ReplicaSet]]
 
-* The mock test                                                      :export:
+* The mock test                                                     :export:
 ** Test outline
 1. Create a ReplicaSet with a static label
 
@@ -63,12 +63,12 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 5. Patch the ReplicaSetScale
 
-6 Read the replicaSetScale to ensure it is Patch
+6. Read the replicaSetScale to ensure it is Patch
 
 7. Delete the Namespace and ReplicaSet
 
 
-* Test the functionality in Go
+*** Test the functionality in Go
 Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/a157574c27e0efa55d3ce2b742fb45bb451a1ecf#diff-c4323b71233a6ca89375ef859d5757a50af9bbeb842d279cdd8f7f80fc0fd882R352-R420][new ginkgo test]] for review.
 
 

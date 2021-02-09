@@ -57,9 +57,13 @@ SELECT
 
 5.  Patch the ReplicaSetScale
 
-6 Read the replicaSetScale to ensure it is Patch
+6.  Read the replicaSetScale to ensure it is Patch
 
-1.  Delete the Namespace and ReplicaSet
+7.  Delete the Namespace and ReplicaSet
+
+### Test the functionality in Go
+
+Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [new ginkgo test](https://github.com/ii/kubernetes/commit/a157574c27e0efa55d3ce2b742fb45bb451a1ecf#diff-c4323b71233a6ca89375ef859d5757a50af9bbeb842d279cdd8f7f80fc0fd882R352-R420) for review.
 
 # Verifying increase in coverage with APISnoop
 
