@@ -1,0 +1,152 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: ReplicaSetScale Test
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+* TODO Progress [2/5]                                                :export:
+- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/][ReplicaSetScaleTest.org]]
+- [X] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
+- [ ] test pr : kuberenetes/kubernetes#
+- [ ] two weeks soak start date : testgrid-link
+- [ ] two weeks soak end date :
+- [ ] test promotion pr : kubernetes/kubernetes#?
+* Identifying an untested feature Using APISnoop                     :export:
+
+According to this APIsnoop query, there are still some remaining RESOURCENAME endpoints which are untested.
+
+with this query you can filter untested endpoints by their category and eligiblity for conformance.
+e.g below shows a query to find all conformance eligible untested,stable,core endpoints
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      -- k8s_action,
+      -- path,
+      -- description,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint like '%ReplicaSetScale%'
+      --and category = 'core'
+      order by kind, endpoint desc
+      limit 25;
+  #+end_src
+
+ #+RESULTS: untested_stable_core_endpoints
+ #+begin_SRC example
+                 endpoint                | kind
+ ----------------------------------------+-------
+  replaceAppsV1NamespacedReplicaSetScale | Scale
+  readAppsV1NamespacedReplicaSetScale    | Scale
+  patchAppsV1NamespacedReplicaSetScale   | Scale
+ (3 rows)
+
+ #+end_SRC
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-replicaset-v1-apps][Kubernetes API Reference Docs]]
+- [[https://pkg.go.dev/k8s.io/kubernetes/test/e2e/framework/replicaset][client-go - ReplicaSet]]
+
+* The mock test                                                     :export:
+** Test outline
+1. Create a ReplicaSet with a static label
+
+2. Read the ReplicaSetScale
+
+3. Update the ReplicaSetScale
+
+4. Get the ReplicaSetScale to ensure it is updated
+
+5. Patch the ReplicaSetScale
+
+6. Read the replicaSetScale to ensure it is Patch
+
+7. Delete the Namespace and ReplicaSet
+
+
+*** Test the functionality in Go
+Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/a157574c27e0efa55d3ce2b742fb45bb451a1ecf#diff-c4323b71233a6ca89375ef859d5757a50af9bbeb842d279cdd8f7f80fc0fd882R352-R420][new ginkgo test]] for review.
+
+
+* Verifying increase in coverage with APISnoop                       :export:
+
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+  select distinct  endpoint, useragent
+                   -- to_char(to_timestamp(release_date::bigint), ' HH:MI') as time
+  from testing.audit_event
+  where endpoint ilike '%ReplicaSetScale%'
+    -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+  -- and useragent like 'kubectl%'
+  order by endpoint
+  limit 100;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                endpoint                |                                                          useragent
+----------------------------------------+------------------------------------------------------------------------------------------------------------------------------
+ patchAppsV1NamespacedReplicaSetScale   | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset should have a working scale subresource
+ readAppsV1NamespacedReplicaSetScale    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset should have a working scale subresource
+ replaceAppsV1NamespacedReplicaSetScale | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset should have a working scale subresource
+(3 rows)
+
+#+end_SRC
+
+
+
+
+
+
+
+
+* Convert to Ginkgo Test
+** Ginkgo Test
+  :PROPERTIES:
+  :ID:       gt001z4ch1sc00l
+  :END:
+* Final notes                                                        :export:
+If a test with these calls gets merged, **test coverage will go up by N points**
+
+This test is also created with the goal of conformance promotion.
+
+-----
+/sig testing
+
+/sig architecture
+
+/area conformance
+
+
+* scratch
+#+BEGIN_SRC
+CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
+  SELECT
+    ec.*,
+    ao.description,
+    ao.http_method
+    FROM endpoint_coverage ec
+           JOIN
+           api_operation_material ao ON (ec.bucket = ao.bucket AND ec.job = ao.job AND ec.operation_id = ao.operation_id)
+   WHERE ec.level = 'stable'
+     AND tested is false
+     AND ao.deprecated IS false
+     AND ec.job != 'live'
+   ORDER BY hit desc
+            ;
+#+END_SRC
+
+*** Delete all audit events
+#+begin_src sql-mode
+delete from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 0
+#+end_SRC
