@@ -1,5 +1,5 @@
 # -*- ii: apisnoop; -*-
-#+TITLE: ReplicaSetScale Test
+#+TITLE: DeploymentScale Test
 #+AUTHOR: ii team
 #+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
 #+OPTIONS: toc:nil tags:nil todo:nil
@@ -30,7 +30,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       kind
       FROM testing.untested_stable_endpoint
       where eligible is true
-      and endpoint like '%ReplicaSetScale%'
+      and endpoint like '%DeploymentScale%'
       --and category = 'core'
       order by kind, endpoint desc
       limit 25;
@@ -40,36 +40,36 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
  #+begin_SRC example
                  endpoint                | kind
  ----------------------------------------+-------
-  replaceAppsV1NamespacedReplicaSetScale | Scale
-  readAppsV1NamespacedReplicaSetScale    | Scale
-  patchAppsV1NamespacedReplicaSetScale   | Scale
+  replaceAppsV1NamespacedDeploymentScale | Scale
+  readAppsV1NamespacedDeploymentScale    | Scale
+  patchAppsV1NamespacedDeploymentScale   | Scale
  (3 rows)
 
  #+end_SRC
 
 * API Reference and feature documentation                            :export:
-- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-replicaset-v1-apps][Kubernetes API Reference Docs]]
-- [[https://pkg.go.dev/k8s.io/kubernetes/test/e2e/framework/replicaset][client-go - ReplicaSet]]
+- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-deployment-v1-apps][Kubernetes API Reference Docs]]
+- [[https://pkg.go.dev/k8s.io/kubernetes/test/e2e/framework/deployment][client-go - Deployment]]
 
 * The mock test                                                     :export:
 ** Test outline
-1. Create a ReplicaSet with a static label
+1. Create a Deployment  with a static label
 
-2. Read the ReplicaSetScale
+2. Read the Deployment
 
-3. Update the ReplicaSetScale
+3. Update the DeploymentScale
 
-4. Get the ReplicaSetScale to ensure it is updated
+4. Get the DeploymentScale to ensure it is updated
 
-5. Patch the ReplicaSetScale
+5. Patch the DeploymentScale
 
-6. Read the replicaSetScale to ensure it is Patch
+6. Read the DeploymentScale to ensure it is Patch
 
-7. Delete the Namespace and ReplicaSet
+7. Delete the Namespace and Deployment
 
 
 *** Test the functionality in Go
-Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/a157574c27e0efa55d3ce2b742fb45bb451a1ecf#diff-c4323b71233a6ca89375ef859d5757a50af9bbeb842d279cdd8f7f80fc0fd882R352-R420][new ginkgo test]] for review.
+Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/blob/7e0d468f06cbee234bbafba3e40c18618b0fccfb/test/e2e/apps/deployment.go#L1484-L1554][new ginkgo test]] for review.
 
 
 * Verifying increase in coverage with APISnoop                       :export:
@@ -79,7 +79,7 @@ Due to the complexity of setting up the resources for APIService we have used th
   select distinct  endpoint, useragent
                    -- to_char(to_timestamp(release_date::bigint), ' HH:MI') as time
   from testing.audit_event
-  where endpoint ilike '%ReplicaSetScale%'
+  where endpoint ilike '%DeploymentScale%'
     -- and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
   -- and useragent like 'kubectl%'
   order by endpoint
@@ -91,12 +91,13 @@ Due to the complexity of setting up the resources for APIService we have used th
 #+begin_SRC example
                 endpoint                |                                                          useragent
 ----------------------------------------+------------------------------------------------------------------------------------------------------------------------------
- patchAppsV1NamespacedReplicaSetScale   | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset should have a working scale subresource
- readAppsV1NamespacedReplicaSetScale    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset should have a working scale subresource
- replaceAppsV1NamespacedReplicaSetScale | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset should have a working scale subresource
+ patchAppsV1NamespacedDeploymentScale   | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] Deployment Deployment should have a working scale subresource
+ readAppsV1NamespacedDeploymentScale    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] Deployment Deployment should have a working scale subresource
+ replaceAppsV1NamespacedDeploymentScale | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] Deployment Deployment should have a working scale subresource
 (3 rows)
 
 #+end_SRC
+
 
 
 
@@ -124,22 +125,6 @@ This test is also created with the goal of conformance promotion.
 
 
 * scratch
-#+BEGIN_SRC
-CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
-  SELECT
-    ec.*,
-    ao.description,
-    ao.http_method
-    FROM endpoint_coverage ec
-           JOIN
-           api_operation_material ao ON (ec.bucket = ao.bucket AND ec.job = ao.job AND ec.operation_id = ao.operation_id)
-   WHERE ec.level = 'stable'
-     AND tested is false
-     AND ao.deprecated IS false
-     AND ec.job != 'live'
-   ORDER BY hit desc
-            ;
-#+END_SRC
 
 *** Delete all audit events
 #+begin_src sql-mode
@@ -148,5 +133,5 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
-DELETE 0
+DELETE 356
 #+end_SRC
