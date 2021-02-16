@@ -49,7 +49,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
  #+end_SRC
 
 * API Reference and feature documentation                            :export:
-- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#read-scale-replicaset-v1-apps][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-write-operations-replicaset-v1-apps-strong-][Kubernetes API Reference Docs]]
 - [[https://pkg.go.dev/k8s.io/kubernetes/test/e2e/framework/replicaset][client-go - ReplicaSet]]
 
 * The mock test                                                     :export:
@@ -58,9 +58,9 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 2. Read the ReplicaSetScale
 
-3. Update the ReplicaSetScale
+3. Scale the  ReplicaSet to 2
 
-4. Get the ReplicaSetScale to ensure it is updated
+4. List the ReplicaSets
 
 5. Patch the ReplicaSetScale
 
@@ -70,7 +70,7 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 
 
 *** Test the functionality in Go
-Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/a157574c27e0efa55d3ce2b742fb45bb451a1ecf#diff-c4323b71233a6ca89375ef859d5757a50af9bbeb842d279cdd8f7f80fc0fd882R352-R420][new ginkgo test]] for review.
+Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/4c95e25f7acfe0e755d535c65fa2d10e852a1cd0][new ginkgo test]] for review.
 
 
 * Verifying increase in coverage with APISnoop                       :export:
@@ -93,14 +93,18 @@ Due to the complexity of setting up the resources for APIService we have used th
 #+begin_SRC example
                endpoint               |                                              useragent
 --------------------------------------+------------------------------------------------------------------------------------------------------
- createAppsV1NamespacedReplicaSet     | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset lifecycle tests
- listAppsV1ReplicaSetForAllNamespaces | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset lifecycle tests
- patchAppsV1NamespacedReplicaSet      | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset lifecycle tests
- readAppsV1NamespacedReplicaSet       | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset lifecycle tests
- replaceAppsV1NamespacedReplicaSet    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet Replicaset lifecycle tests
+ createAppsV1NamespacedReplicaSet     | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ listAppsV1ReplicaSetForAllNamespaces | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ patchAppsV1NamespacedReplicaSet      | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ readAppsV1NamespacedReplicaSet       | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ replaceAppsV1NamespacedReplicaSet    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
 (5 rows)
 
 #+end_SRC
+
+
+
+
 
 
 
@@ -139,13 +143,13 @@ delete from testing.audit_event;
 
 #+RESULTS:
 #+begin_SRC example
-DELETE 400
+DELETE 0
 #+end_SRC
 
 
 
 
-
+*** Identify the test for an endpoint
 #+begin_src sql-mode
 select endpoint,
        unnest(tests) as test
