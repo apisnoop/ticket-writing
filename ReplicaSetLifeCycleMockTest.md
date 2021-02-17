@@ -50,23 +50,21 @@ SELECT
 
 1.  Create a ReplicaSet with a static label
 
-2.  Read the ReplicaSetScale
+2.  Read the ReplicaSet
 
 3.  Scale the ReplicaSet to 2
 
-4.  List the ReplicaSets
+4.  Patch the ReplicaSetScale
 
-5.  Patch the ReplicaSetScale
+5.  Read the replicaSet to ensure it is Patch
 
-6.  Read the replicaSetScale to ensure it is Patch
+6.  Delete the Namespace and ReplicaSet
 
-7.  Delete the Namespace and ReplicaSet
-
-### Test the functionality in Go
+### Test the function in Go
 
 Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [new ginkgo test](https://github.com/ii/kubernetes/commit/4c95e25f7acfe0e755d535c65fa2d10e852a1cd0) for review.
 
-# Verifying increase in coverage with APISnoop
+# Verifying increase coverage with APISnoop
 
 ```sql-mode
 select distinct  endpoint, useragent
@@ -82,27 +80,22 @@ limit 100;
 ```
 
 ```example
-               endpoint               |                                              useragent
---------------------------------------|------------------------------------------------------------------------------------------------------
- createAppsV1NamespacedReplicaSet     | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
- listAppsV1ReplicaSetForAllNamespaces | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
- patchAppsV1NamespacedReplicaSet      | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
- readAppsV1NamespacedReplicaSet       | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
- replaceAppsV1NamespacedReplicaSet    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
-(5 rows)
+             endpoint              |                                              useragent
+-----------------------------------|------------------------------------------------------------------------------------------------------
+ createAppsV1NamespacedReplicaSet  | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ patchAppsV1NamespacedReplicaSet   | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ readAppsV1NamespacedReplicaSet    | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+ replaceAppsV1NamespacedReplicaSet | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet ReplicaSet lifecycle tests
+(4 rows)
 
 ```
 
 # Final notes
 
-If a test with these calls gets merged, ****test coverage will go up by N points****
+If a test with these calls gets merged, ****test coverage will go up by 2 points****
 
 This test is also created with the goal of conformance promotion.
 
 ---
 
-/sig testing
-
-/sig architecture
-
-/area conformance
+/sig testing /sig architecture /sig apps /area conformance
