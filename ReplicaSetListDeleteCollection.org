@@ -1,0 +1,271 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Replicasets Apps endpoints
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+* TODO Progress [2/5]                                                :export:
+- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/][MyEndpoint.org]]
+- [X] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
+- [ ] test pr : kuberenetes/kubernetes#
+- [ ] two weeks soak start date : testgrid-link
+- [ ] two weeks soak end date :
+- [ ] test promotion pr : kubernetes/kubernetes#?
+* Identifying an untested feature Using APISnoop                     :export:
+
+According to this APIsnoop query, there are still some remaining RESOURCENAME endpoints which are untested.
+
+with this query you can filter untested endpoints by their category and eligiblity for conformance.
+e.g below shows a query to find all conformance eligible untested,stable,core endpoints
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      -- k8s_action,
+      -- path,
+      -- description,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+        and endpoint like '%ReplicaSet%'
+      --and category = 'core'
+      order by kind, endpoint desc
+      limit 25;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                    endpoint                  |    kind
+  --------------------------------------------+------------
+   replaceAppsV1NamespacedReplicaSetStatus    | ReplicaSet
+   readAppsV1NamespacedReplicaSetStatus       | ReplicaSet
+   patchAppsV1NamespacedReplicaSetStatus      | ReplicaSet
+   listAppsV1ReplicaSetForAllNamespaces       | ReplicaSet
+   deleteAppsV1CollectionNamespacedReplicaSet | ReplicaSet
+  (5 rows)
+
+  #+end_SRC
+
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/RESOURCENAME.go][client-go - RESOURCENAME]]
+
+* The mock test                                                      :export:
+** Test outline
+
+
+*** Delete audit events to check for success
+
+**** Count all audit events
+#+begin_src sql-mode
+select count(*) from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count 
+-------
+ 12684
+(1 row)
+
+#+end_SRC
+
+
+
+**** Delete all audit events
+#+begin_src sql-mode
+delete from testing.audit_event;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+DELETE 0
+#+end_SRC
+
+
+
+
+*** Test to see is new endpoint was hit by the test
+#+begin_src sql-mode :eval never-export :exports both :session none
+  select distinct  endpoint, useragent
+  from testing.audit_event
+  where endpoint ilike '%ReplicaSet%'
+  and useragent like '%ReplicaSet%'
+  order by endpoint
+  limit 100;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint                  |                                                   useragent
+--------------------------------------------+----------------------------------------------------------------------------------------------------------------
+ createAppsV1NamespacedReplicaSet           | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet List and DeleteCollection operations
+ deleteAppsV1CollectionNamespacedReplicaSet | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet List and DeleteCollection operations
+ listAppsV1ReplicaSetForAllNamespaces       | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] ReplicaSet List and DeleteCollection operations
+(3 rows)
+
+#+end_SRC
+
+
+** Test the functionality in Go
+   #+NAME: Mock Test In Go
+   #+begin_src go
+     package main
+
+     import (
+       // "encoding/json"
+       "fmt"
+       "context"
+       "flag"
+       "os"
+       v1 "k8s.io/api/core/v1"
+       // "k8s.io/client-go/dynamic"
+       // "k8s.io/apimachinery/pkg/runtime/schema"
+       metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+       "k8s.io/client-go/kubernetes"
+       // "k8s.io/apimachinery/pkg/types"
+       "k8s.io/client-go/tools/clientcmd"
+     )
+
+     func main() {
+       // uses the current context in kubeconfig
+       kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+       flag.Parse()
+       config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+       if err != nil {
+           fmt.Println(err, "Could not build config from flags")
+           return
+       }
+       // make our work easier to find in the audit_event queries
+       config.UserAgent = "live-test-writing"
+       // creates the clientset
+       ClientSet, _ := kubernetes.NewForConfig(config)
+       // DynamicClientSet, _ := dynamic.NewForConfig(config)
+       // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
+       // TEST BEGINS HERE
+
+       testPodName := "test-pod"
+       testPodImage := "nginx"
+       testNamespaceName := "default"
+
+       fmt.Println("creating a Pod")
+       testPod := v1.Pod{
+         ObjectMeta: metav1.ObjectMeta{
+           Name: testPodName,
+           Labels: map[string]string{"test-pod-static": "true"},
+         },
+         Spec: v1.PodSpec{
+           Containers: []v1.Container{{
+             Name: testPodName,
+             Image: testPodImage,
+           }},
+         },
+       }
+       _, err = ClientSet.CoreV1().Pods(testNamespaceName).Create(context.TODO(), &testPod, metav1.CreateOptions{})
+       if err != nil {
+           fmt.Println(err, "failed to create Pod")
+           return
+       }
+
+       fmt.Println("listing Pods")
+       pods, err := ClientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "test-pod-static=true"})
+       if err != nil {
+           fmt.Println(err, "failed to list Pods")
+           return
+       }
+       podCount := len(pods.Items)
+       if podCount == 0 {
+           fmt.Println("there are no Pods found")
+           return
+       }
+       fmt.Println(podCount, "Pod(s) found")
+
+       fmt.Println("deleting Pod")
+       err = ClientSet.CoreV1().Pods(testNamespaceName).Delete(context.TODO(), testPodName, metav1.DeleteOptions{})
+       if err != nil {
+           fmt.Println(err, "failed to delete the Pod")
+           return
+       }
+
+       // TEST ENDS HERE
+
+       fmt.Println("[status] complete")
+
+     }
+   #+end_src
+
+   #+RESULTS:
+   #+begin_example
+   creating a Pod
+   listing Pods
+   1 Pod(s) found
+   deleting Pod
+   [status] complete
+   #+end_example
+
+* Verifying increase in coverage with APISnoop                       :export:
+Discover useragents:
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select distinct useragent
+      from testing.audit_event
+      where useragent like 'live%';
+  #+end_src
+
+  #+RESULTS:
+  :  useragent
+  : -----------
+  : (0 rows)
+  :
+
+List endpoints hit by the test:
+#+begin_src sql-mode :exports both :session none
+select * from testing.endpoint_hit_by_new_test;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ useragent | endpoint | hit_by_ete | hit_by_new_test
+-----------+----------+------------+-----------------
+(0 rows)
+
+#+end_SRC
+
+Display endpoint coverage change:
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select * from testing.projected_change_in_coverage;
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+     category    | total_endpoints | old_coverage | new_coverage | change_in_number
+  ---------------+-----------------+--------------+--------------+------------------
+   test_coverage |             862 |          343 |          343 |                0
+  (1 row)
+
+  #+end_SRC
+
+* Convert to Ginkgo Test
+** Ginkgo Test
+  :PROPERTIES:
+  :ID:       gt001z4ch1sc00l
+  :END:
+* Final notes                                                        :export:
+If a test with these calls gets merged, **test coverage will go up by N points**
+
+This test is also created with the goal of conformance promotion.
+
+-----
+/sig testing
+
+/sig architecture
+
+/area conformance
+
+
+* scratch
