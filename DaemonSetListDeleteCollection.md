@@ -1,8 +1,8 @@
 # Progress <code>[2/6]</code>
 
--   APISnoop org-flow :
--   test approval issue : #
--   [X] test pr : #
+-   [ ] APISnoop org-flow :
+-   [ ] test approval issue : #
+-   [ ] test pr : #
 -   [ ] two weeks soak start date :
 -   [ ] two weeks soak end date :
 -   [ ] test promotion pr : kubernetes/kubernetes #
