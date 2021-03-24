@@ -2,7 +2,7 @@
 
 -   [ ] APISnoop org-flow :
 -   [ ] test approval issue : #
--   [X] test pr : #
+-   [ ] test pr : #
 -   [ ] two weeks soak start date :
 -   [ ] two weeks soak end date :
 -   [ ] test promotion pr : kubernetes/kubernetes #
