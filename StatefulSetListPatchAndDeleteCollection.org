@@ -1,5 +1,5 @@
 # -*- ii: apisnoop; -*-
-#+TITLE: StatefulSetLifeCycle Test
+#+TITLE: StatefulSet List, Patch and DeleteCollection test
 #+AUTHOR: ii team
 #+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
 #+OPTIONS: toc:nil tags:nil todo:nil
@@ -49,14 +49,20 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
  #+end_SRC
 
 * API Reference and feature documentation                            :export:
-- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#-strong-write-operations-replicaset-v1-apps-strong-][Kubernetes API Reference Docs]]
-- [[https://pkg.go.dev/k8s.io/kubernetes/test/e2e/framework/replicaset][client-go - ReplicaSet]]
+- [[https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#statefulset-v1-apps][Kubernetes API Reference Docs]]
+- [[https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/client-go/kubernetes/typed/apps/v1/statefulset.go][Client-go - StatefulSet]]
 
 * The mock test                                                     :export:
 ** Test outline
 
+1. Create a StatefulSet
+2. Patch the StatefulSet
+3. List all StatefulSet in the namespace
+4. Delete the collection if StatefulSets in the namespace
+5. Verify that all StatefulSet was deleted
+
 *** Test the functionality in Go
-Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/4c95e25f7acfe0e755d535c65fa2d10e852a1cd0][new ginkgo test]] for review.
+Due to the complexity of setting up the resources for APIService we have used the current e2e test as template. It has been extended in a [[https://github.com/ii/kubernetes/commit/95f29fd7fdff91853beb7bae88d3389f257ee02e][New ginkgo test]] for review.
 
 
 * Verifying increase in coverage with APISnoop                       :export:
@@ -77,31 +83,18 @@ Due to the complexity of setting up the resources for APIService we have used th
 
 #+RESULTS:
 #+begin_SRC example
-                 endpoint                 |                                                                                         useragent
-------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- createAppsV1NamespacedStatefulSet        | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
- deleteAppsV1NamespacedStatefulSet        | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
- listAppsV1NamespacedStatefulSet          | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
- patchAppsV1NamespacedStatefulSet         | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
- readAppsV1NamespacedStatefulSet          | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
- replaceAppsV1NamespacedStatefulSet       | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
- replaceAppsV1NamespacedStatefulSetStatus | kube-controller-manager/v1.20.4 (linux/amd64) kubernetes/e87da0b/system:serviceaccount:kube-system:statefulset-controller
+                  endpoint                   |                                                                                        useragent
+---------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ createAppsV1NamespacedStatefulSet           | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
+ deleteAppsV1CollectionNamespacedStatefulSet | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
+ listAppsV1NamespacedStatefulSet             | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
+ listAppsV1StatefulSetForAllNamespaces       | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
+ patchAppsV1NamespacedStatefulSet            | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
+ readAppsV1NamespacedStatefulSet             | e2e.test/v0.0.0 (linux/amd64) kubernetes/$Format -- [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should list, patch and delete a collection of StatefulSets
+ replaceAppsV1NamespacedStatefulSetStatus    | kube-controller-manager/v1.20.4 (linux/amd64) kubernetes/e87da0b/system:serviceaccount:kube-system:statefulset-controller
 (7 rows)
 
 #+end_SRC
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 * Convert to Ginkgo Test
