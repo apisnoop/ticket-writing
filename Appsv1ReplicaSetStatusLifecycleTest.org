@@ -1,0 +1,197 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: AppsV1 ReplicaSet Status lifecycle Test - +3
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* Identifying an untested feature Using APISnoop                     :export:
+
+According to this APIsnoop query, there are still some remaining ReplicaSet endpoints which are untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%ReplicaSetStatus'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                  endpoint                 |                              path                              |    kind
+  -----------------------------------------+----------------------------------------------------------------+------------
+   replaceAppsV1NamespacedReplicaSetStatus | /apis/apps/v1/namespaces/{namespace}/replicasets/{name}/status | ReplicaSet
+   readAppsV1NamespacedReplicaSetStatus    | /apis/apps/v1/namespaces/{namespace}/replicasets/{name}/status | ReplicaSet
+   patchAppsV1NamespacedReplicaSetStatus   | /apis/apps/v1/namespaces/{namespace}/replicasets/{name}/status | ReplicaSet
+  (3 rows)
+
+  #+end_SRC
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/replica-set-v1/][Kubernetes API / Workload Resources / ReplicaSet]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/apps/v1/replicaset.go][client-go - ReplicaSet]]
+
+* The mock test                                                      :export:
+** Test outline
+1. Create a watch to track replica set events
+
+2. Create a replica set with a static label. Confirm that the pods are running.
+
+3. Get the replica set status. Parse the response and confirm that the replica set status conditions can be listed.
+
+4. Update the replica set status. Confirm via the watch that the status has been updated.
+
+5. Patch the replica set status. Confirm via the watch that the status has been patched.
+
+** Test the functionality in Go
+
+Using an existing [[https://github.com/ii/kubernetes/blob/ca3aa6f5af1b545b116b52c717b866e43c79079b/test/e2e/apps/daemon_set.go#L812-L947][status lifecycle test]] as a template for a new [[https://github.com/ii/kubernetes/blob/replicaset-status-test/test/e2e/apps/replica_set.go#L513-L642][ginkgo test]] for daemon set lifecycle test.
+Due to a test flake with patching the replica set status conditions the final "watch/validation" check is still be written.
+
+** Test Flake
+*** Patching the replica set causes test failure
+
+#+BEGIN_EXAMPLE
+[It] should validate Replicaset Status endpoints
+  /home/ii/go/src/k8s.io/kubernetes/test/e2e/apps/replica_set.go:155
+Apr  6 15:16:30.093: INFO: labels: name=sample-pod,pod=httpd
+STEP: Create a ReplicaSet
+STEP: Verify that the required pods have come up.
+Apr  6 15:16:30.099: INFO: Pod name sample-pod: Found 0 pods out of 1
+Apr  6 15:16:35.108: INFO: Pod name sample-pod: Found 1 pods out of 1
+STEP: ensuring each pod is running
+STEP: Getting /status
+Apr  6 15:16:35.136: INFO: ReplicaSet test-rs has Conditions: []
+Apr  6 15:16:35.136: INFO: ReplicaSet test-rs Status.Replicas: 1
+Apr  6 15:16:35.136: INFO: ReplicaSet test-rs Status.ReadyReplicas: 1
+Apr  6 15:16:35.136: INFO: ReplicaSet test-rs Status.AvailableReplicas: 1
+STEP: updating the ReplicaSet Status
+Apr  6 15:16:35.147: INFO: updatedStatus.Conditions: []v1.ReplicaSetCondition{v1.ReplicaSetCondition{Type:"StatusUpdate", Status:"True", LastTransitionTime:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Reason:"E2E", Message:"Set from e2e test"}}
+STEP: watching for the daemon set status to be updated
+Apr  6 15:16:35.149: INFO: Observed event: ADDED
+Apr  6 15:16:35.149: INFO: Observed event: MODIFIED
+Apr  6 15:16:35.149: INFO: Observed event: MODIFIED
+Apr  6 15:16:35.149: INFO: Observed event: MODIFIED
+Apr  6 15:16:35.149: INFO: Found replica set test-rs in namespace replicaset-2037 with labels: map[name:sample-pod pod:httpd] annotations: map[] & Conditions: [{StatusUpdate True 0001-01-01 00:00:00 +0000 UTC E2E Set from e2e test}]
+Apr  6 15:16:35.149: INFO: Replica set test-rs has an updated status
+STEP: get ReplicaSet state
+Apr  6 15:16:35.152: INFO: rs1.Conditions: []v1.ReplicaSetCondition{v1.ReplicaSetCondition{Type:"StatusUpdate", Status:"True", LastTransitionTime:v1.Time{Time:time.Time{wall:0x0, ext:0, loc:(*time.Location)(nil)}}, Reason:"E2E", Message:"Set from e2e test"}}
+Apr  6 15:16:35.152: INFO: ReplicaSet test-rs Status.FullyLabeledReplicas: 1
+Apr  6 15:16:35.152: INFO: ReplicaSet test-rs Status.Replicas: 1
+Apr  6 15:16:35.152: INFO: ReplicaSet test-rs Status.ReadyReplicas: 1
+Apr  6 15:16:35.152: INFO: ReplicaSet test-rs Status.AvailableReplicas: 1
+STEP: patching the ReplicaSet Status
+Apr  6 15:16:35.158: FAIL: Failed to patch replica set status. ReplicaSet.apps "test-rs" is invalid: [status.fullyLabeledReplicas: Invalid value: 1: cannot be greater than status.replicas, status.readyReplicas: Invalid value: 1: cannot be greater than status.replicas, status.availableReplicas: Invalid value: 1: cannot be greater than status.replicas]
+#+END_EXAMPLE
+
+*** Full Stack Trace
+
+#+BEGIN_EXAMPLE
+Unexpected error:
+    <*errors.StatusError | 0xc00024d4a0>: {
+        ErrStatus: {
+            TypeMeta: {Kind: "", APIVersion: ""},
+            ListMeta: {
+                SelfLink: "",
+                ResourceVersion: "",
+                Continue: "",
+                RemainingItemCount: nil,
+            },
+            Status: "Failure",
+            Message: "ReplicaSet.apps \"test-rs\" is invalid: [status.fullyLabeledReplicas: Invalid value: 1: cannot be greater than status.replicas, status.readyReplicas: Invalid value: 1: cannot be greater than status.replicas, status.availableReplicas: Invalid value: 1: cannot be greater than status.replicas]",
+            Reason: "Invalid",
+            Details: {
+                Name: "test-rs",
+                Group: "apps",
+                Kind: "ReplicaSet",
+                UID: "",
+                Causes: [
+                    {
+                        Type: "FieldValueInvalid",
+                        Message: "Invalid value: 1: cannot be greater than status.replicas",
+                        Field: "status.fullyLabeledReplicas",
+                    },
+                    {
+                        Type: "FieldValueInvalid",
+                        Message: "Invalid value: 1: cannot be greater than status.replicas",
+                        Field: "status.readyReplicas",
+                    },
+                    {
+                        Type: "FieldValueInvalid",
+                        Message: "Invalid value: 1: cannot be greater than status.replicas",
+                        Field: "status.availableReplicas",
+                    },
+                ],
+                RetryAfterSeconds: 0,
+            },
+            Code: 422,
+        },
+    }
+    ReplicaSet.apps "test-rs" is invalid: [status.fullyLabeledReplicas: Invalid value: 1: cannot be greater than status.replicas, status.readyReplicas: Invalid value: 1: cannot be greater than status.replicas, status.availableReplicas: Invalid value: 1: cannot be greater than status.replicas]
+occurred
+#+END_EXAMPLE
+
+The error looks to be part of the [[https://github.com/kubernetes/kubernetes/blob/b0abe89ae259d5e891887414cb0e5f81c969c697/pkg/apis/apps/validation/validation.go#L629-L651][validation code for replica sets]].
+Looking for suggestions on whats likely to be happening and how to best resolve the flake would be appreciated.
+
+* Verifying increase in coverage with APISnoop                       :export:
+** Listing endpoints hit by the new e2e test
+
+This query shows the endpoints hit within a short period of running the e2e test
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct  endpoint, right(useragent,65) AS useragent
+from testing.audit_event
+where endpoint ilike '%ReplicaSetStatus%'
+and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+and useragent like 'e2e%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                endpoint                 |                             useragent
+-----------------------------------------+-------------------------------------------------------------------
+ patchAppsV1NamespacedReplicaSetStatus   | [sig-apps] ReplicaSet should validate Replicaset Status endpoints
+ readAppsV1NamespacedReplicaSetStatus    | [sig-apps] ReplicaSet should validate Replicaset Status endpoints
+ replaceAppsV1NamespacedReplicaSetStatus | [sig-apps] ReplicaSet should validate Replicaset Status endpoints
+(3 rows)
+
+#+end_SRC
+
+* Final notes                                                        :export:
+
+If a test with these calls gets merged, *test coverage will go up by 2 points*
+
+This test is also created with the goal of conformance promotion.
+
+-----  
+/sig testing  
+
+/sig architecture  
+
+/area conformance  
+
+* Options :neverexport:
+** Delete all events after postgres initialization
+   #+begin_src sql-mode :eval never-export :exports both :session none
+   delete from audit_event where bucket = 'apisnoop' and job='live';
+   #+end_src
+
+* Open Tasks
+  Set any open tasks here, using org-todo
+** DONE Live Your Best Life
+* Footnotes                                                     :neverexport:
+  :PROPERTIES:
+  :CUSTOM_ID: footnotes
+  :END:
