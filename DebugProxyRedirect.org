@@ -1,0 +1,468 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Debug Proxy Redirects
+#+AUTHOR: Stephen Heywood
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* Setup
+** Go
+
+#+begin_src tmate :window kind
+date
+go version
+#+end_src
+
+** Kubernetes
+
+- Use the master branch before adding any custom changes to the Kubernetes repo.
+
+#+begin_src tmate :window kind
+date
+mkdir /tmp/debug-proxy && cd $_
+git clone --branch debug-proxy https://github.com/kubernetes/kubernetes.git
+cd kubernetes/staging/src/k8s.io/apimachinery/pkg/util/proxy
+wget -O upgradeaware.go https://raw.githubusercontent.com/heyste/kubernetes/debug-proxy/staging/src/k8s.io/apimachinery/pkg/util/proxy/upgradeaware.go
+git branch && git log -1
+#+end_src
+
+* Kind
+** Clone & Build kind
+
+- https://github.com/kubernetes-sigs/kind
+
+#+begin_src tmate :window kind
+date
+cd /tmp/debug-proxy
+git clone https://github.com/kubernetes-sigs/kind.git
+cd kind && go build
+./kind version
+#+end_src
+
+** Get apisnoop config for kind
+
+#+begin_src tmate :window kind
+date
+cd /tmp/debug-proxy
+git clone --branch check-proxy-requests https://github.com/heyste/apisnoop.git
+cd apisnoop
+git branch && git log -2
+#+end_src
+
+** Build k8s image
+
+#+begin_src tmate :window kind
+date
+cd /tmp/debug-proxy
+./kind/kind build node-image /tmp/debug-proxy/kubernetes --image "debug-proxy" -v=9
+docker images | head -3
+#+end_src
+
+** Kind: Create Cluster
+
+#+begin_src tmate :window kind
+date
+cd /tmp/debug-proxy/apisnoop/kind
+../../kind/kind get clusters
+../../kind/kind create cluster --config=kind+apisnoop.yaml --image=debug-proxy:latest
+../../kind/kind version
+kubectl get nodes -owide
+sleep 5
+kubectl get pods -A
+kubectl wait --for=condition=Ready --selector=app.kubernetes.io/name=auditlogger --timeout=600s pod
+#+end_src
+
+** Kind: Delete Cluster
+
+#+begin_src tmate :window kind
+date
+kind get clusters
+kind delete cluster
+kind get clusters
+#+end_src
+
+* Proxy Setup
+** Create debug-pod
+
+#+begin_src tmate :window kind
+date
+cd /tmp/debug-proxy
+cat << EOF > proxy.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-proxy
+  labels:
+    purpose: limit-redirect
+spec:
+  containers:
+  - name: agnhost
+    image: k8s.gcr.io/e2e-test-images/agnhost:2.32
+    command: ["/agnhost"]
+    args: ["porter", "--json-response"]
+    env:
+    - name: SERVE_PORT_80
+      value: "foo"
+EOF
+kubectl apply -f proxy.yaml
+kubectl wait --for=condition=Ready pod/debug-proxy --timeout=600s
+kubectl get pods
+#+end_src
+
+** Start =kubectl proxy=
+
+#+begin_src tmate :window proxy
+date
+kubectl proxy  --port=11111
+#+end_src
+
+* Filter =kube-apiserver= log results
+
+- https://github.com/heyste/kubernetes/commit/a9241d3b5f0f7a2f93aed73095514b624de08c3f
+
+#+BEGIN_SRC tmate :window logs
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+* Test =curl= requests
+** GET Requests
+
+#+BEGIN_SRC tmate :window curl
+curl -I -XGET http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy?timeout=10s
+#+END_SRC
+
+#+BEGIN_SRC tmate :window logs
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+** DELETE Requests
+
+#+BEGIN_SRC tmate :window curl
+curl -I -XDELETE http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+#+END_SRC
+
+#+BEGIN_SRC tmate :window logs
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+** POST Request
+
+#+BEGIN_SRC tmate :window curl
+curl -I -XPOST http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+* Log Results
+** Send GET request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XGET http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 301 Moved Permanently
+Audit-Id: 705762bc-dacd-4054-8ce2-f2035804f5fc
+Cache-Control: no-cache, private
+Content-Length: 0
+Date: Wed, 02 Jun 2021 03:35:27 GMT
+Location: /api/v1/namespaces/default/pods/debug-proxy/proxy/
+...
+I0602 03:35:27.586731       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:35:27.586743       1 upgradeaware.go:210] PLH: Method: GET
+I0602 03:35:27.586746       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:35:27.586749       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:35:27.586751       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:35:27.586754       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:35:27.586756       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:35:27.586759       1 upgradeaware.go:233] PLH: queryPart:
+I0602 03:35:27.586771       1 upgradeaware.go:236] PLH: w.Header: http.Header{"Audit-Id":[]string{"705762bc-dacd-4054-8ce2-f2035804f5fc"}, "Cache-Control":[]string{"no-cache, private"}, "Location":[]string{"/api/v1/namespaces/default/pods/debug-proxy/proxy/"}}
+#+end_src
+
+** Send HEAD request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XHEAD http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 301 Moved Permanently
+Audit-Id: 97b3f27c-7095-4615-802b-bcd06dac1423
+Cache-Control: no-cache, private
+Date: Wed, 02 Jun 2021 03:35:56 GMT
+Location: /api/v1/namespaces/default/pods/debug-proxy/proxy/
+...
+I0602 03:35:56.653365       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:35:56.653412       1 upgradeaware.go:210] PLH: Method: HEAD
+I0602 03:35:56.653429       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:35:56.653442       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:35:56.653456       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:35:56.653473       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:35:56.653488       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:35:56.653506       1 upgradeaware.go:233] PLH: queryPart:
+I0602 03:35:56.653568       1 upgradeaware.go:236] PLH: w.Header: http.Header{"Audit-Id":[]string{"97b3f27c-7095-4615-802b-bcd06dac1423"}, "Cache-Control":[]string{"no-cache, private"}, "Location":[]string{"/api/v1/namespaces/default/pods/debug-proxy/proxy/"}}
+#+end_src
+
+** Send DELETE request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XDELETE http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 200 OK
+Audit-Id: 5ffc5634-932f-41af-9c01-9c717e0bb971
+Cache-Control: no-cache, private
+Content-Length: 32
+Content-Type: application/json
+Date: Wed, 02 Jun 2021 03:36:27 GMT
+...
+I0602 03:35:56.653568       1 upgradeaware.go:236] PLH: w.Header: http.Header{"Audit-Id":[]string{"97b3f27c-7095-4615-802b-bcd06dac1423"}, "Cache-Control":[]string{"no-cache, private"}, "Location":[]string{"/api/v1/namespaces/default/pods/debug-proxy/proxy/"}}
+I0602 03:36:27.941519       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:36:27.941568       1 upgradeaware.go:210] PLH: Method: DELETE
+I0602 03:36:27.941580       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:36:27.941588       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:36:27.941597       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:36:27.941609       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:36:27.941620       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:36:27.941643       1 upgradeaware.go:240] PLH: w.Header: http.Header{"Audit-Id":[]string{"5ffc5634-932f-41af-9c01-9c717e0bb971"}, "Cache-Control":[]string{"no-cache, private"}}
+#+end_src
+
+** Send OPTIONS request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XOPTIONS http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 200 OK
+Audit-Id: 4c2c8efb-ba04-46b8-9f0a-cccf1ad3d882
+Cache-Control: no-cache, private
+Content-Length: 33
+Content-Type: application/json
+Date: Wed, 02 Jun 2021 03:37:03 GMT
+...
+I0602 03:37:03.813591       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:37:03.813604       1 upgradeaware.go:210] PLH: Method: OPTIONS
+I0602 03:37:03.813607       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:37:03.813608       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:37:03.813610       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:37:03.813613       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:37:03.813615       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:37:03.813618       1 upgradeaware.go:240] PLH: w.Header: http.Header{"Audit-Id":[]string{"4c2c8efb-ba04-46b8-9f0a-cccf1ad3d882"}, "Cache-Control":[]string{"no-cache, private"}}
+#+end_src
+
+** Send PATCH request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XPATCH http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 200 OK
+Audit-Id: 583a21de-c127-466f-a83d-41b103010519
+Cache-Control: no-cache, private
+Content-Length: 31
+Content-Type: application/json
+Date: Wed, 02 Jun 2021 03:37:26 GMT
+...
+I0602 03:37:26.890096       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:37:26.890110       1 upgradeaware.go:210] PLH: Method: PATCH
+I0602 03:37:26.890113       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:37:26.890116       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:37:26.890118       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:37:26.890120       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:37:26.890123       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:37:26.890127       1 upgradeaware.go:240] PLH: w.Header: http.Header{"Audit-Id":[]string{"583a21de-c127-466f-a83d-41b103010519"}, "Cache-Control":[]string{"no-cache, private"}}
+#+end_src
+
+** Send POST request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XPOST http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 200 OK
+Audit-Id: 67909e98-4c51-4ff4-b584-00cdf8809f7c
+Cache-Control: no-cache, private
+Content-Length: 30
+Content-Type: application/json
+Date: Wed, 02 Jun 2021 03:37:34 GMT
+...
+I0602 03:37:34.968063       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:37:34.968078       1 upgradeaware.go:210] PLH: Method: POST
+I0602 03:37:34.968082       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:37:34.968085       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:37:34.968088       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:37:34.968094       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:37:34.968097       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:37:34.968102       1 upgradeaware.go:240] PLH: w.Header: http.Header{"Audit-Id":[]string{"67909e98-4c51-4ff4-b584-00cdf8809f7c"}, "Cache-Control":[]string{"no-cache, private"}}
+#+end_src
+
+** Send PUT request and record results
+
+#+BEGIN_SRC bash :results both
+curl -I -XPUT http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
+export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
+docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
+#+END_SRC
+
+#+RESULTS:
+#+begin_src bash
+HTTP/1.1 200 OK
+Audit-Id: 445102e4-efe7-4502-b39b-fc1f41bbc287
+Cache-Control: no-cache, private
+Content-Length: 29
+Content-Type: application/json
+Date: Wed, 02 Jun 2021 03:38:35 GMT
+...
+I0602 03:38:35.584040       1 upgradeaware.go:196] PLH: Tracking request
+I0602 03:38:35.584058       1 upgradeaware.go:210] PLH: Method: PUT
+I0602 03:38:35.584063       1 upgradeaware.go:211] PLH: URL.RawQuery:
+I0602 03:38:35.584065       1 upgradeaware.go:212] PLH: loc.Path:
+I0602 03:38:35.584068       1 upgradeaware.go:213] PLH: len(loc.Path): 0
+I0602 03:38:35.584073       1 upgradeaware.go:221] PLH: loc.Path:
+I0602 03:38:35.584076       1 upgradeaware.go:222] PLH: len(loc.Path): 0
+I0602 03:38:35.584081       1 upgradeaware.go:240] PLH: w.Header: http.Header{"Audit-Id":[]string{"445102e4-efe7-4502-b39b-fc1f41bbc287"}, "Cache-Control":[]string{"no-cache, private"}}
+#+end_src
+
+* Query apisnoop
+** Set DB settings                                                :neverexport:
+
+#+begin_src elisp :results silent
+(setq sql-server "localhost")
+(setq sql-database "apisnoop")
+(setq sql-user "apisnoop")
+(setq sql-port 54321)
+#+end_src
+
+** Untested Proxy Endpoints
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%proxy%'
+      order by kind, endpoint desc
+      limit 20;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                    endpoint                  |                         path                         |        kind
+  --------------------------------------------+------------------------------------------------------+---------------------
+   connectCoreV1PutNamespacedPodProxy         | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1PostNamespacedPodProxy        | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1PatchNamespacedPodProxy       | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1OptionsNamespacedPodProxy     | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1HeadNamespacedPodProxy        | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1GetNamespacedPodProxy         | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1DeleteNamespacedPodProxy      | /api/v1/namespaces/{namespace}/pods/{name}/proxy     | PodProxyOptions
+   connectCoreV1PutNamespacedServiceProxy     | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+   connectCoreV1PostNamespacedServiceProxy    | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+   connectCoreV1PatchNamespacedServiceProxy   | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+   connectCoreV1OptionsNamespacedServiceProxy | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+   connectCoreV1HeadNamespacedServiceProxy    | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+   connectCoreV1GetNamespacedServiceProxy     | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+   connectCoreV1DeleteNamespacedServiceProxy  | /api/v1/namespaces/{namespace}/services/{name}/proxy | ServiceProxyOptions
+  (14 rows)
+
+  #+end_SRC
+
+** Query recent access to proxy endpoints
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct  endpoint, right(useragent,83) AS useragent
+from testing.audit_event
+where endpoint ilike '%proxy%'
+and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 30000
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint                  |  useragent
+--------------------------------------------+-------------
+ connectCoreV1GetNamespacedPodProxyWithPath | curl/7.68.0
+(1 row)
+
+#+end_SRC
+
+*** psql test 1                                                  :neverexport:
+
+#+begin_src bash
+psql -d apisnoop -h localhost -p 54321 -U apisnoop -c 'select 1 AS "1";'
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+ 1
+---
+ 1
+(1 row)
+
+#+end_src
+
+*** psql test 2                                                  :neverexport:
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0);
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+     round
+---------------
+ 1622603238631
+(1 row)
+
+#+end_SRC
+
+** Proxy endpoints hit as tracked by apisnoop
+
+#+begin_src bash
+psql -d apisnoop -h localhost -p 54321 -U apisnoop -c "select distinct endpoint, useragent from testing.audit_event where endpoint like '%Proxy%' limit 10;"
+#+end_src
+
+#+RESULTS:
+#+begin_src bash
+                    endpoint                    |  useragent
+------------------------------------------------+-------------
+ connectCoreV1DeleteNamespacedPodProxyWithPath  | curl/7.68.0
+ connectCoreV1GetNamespacedPodProxyWithPath     | curl/7.68.0
+ connectCoreV1OptionsNamespacedPodProxyWithPath | curl/7.68.0
+ connectCoreV1PatchNamespacedPodProxyWithPath   | curl/7.68.0
+ connectCoreV1PostNamespacedPodProxyWithPath    | curl/7.68.0
+ connectCoreV1PutNamespacedPodProxyWithPath     | curl/7.68.0
+(6 rows)
+
+#+end_src
