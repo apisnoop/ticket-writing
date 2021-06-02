@@ -22,7 +22,7 @@ go version
 #+begin_src tmate :window kind
 date
 mkdir /tmp/debug-proxy && cd $_
-git clone --branch debug-proxy https://github.com/kubernetes/kubernetes.git
+git clone https://github.com/kubernetes/kubernetes.git
 cd kubernetes/staging/src/k8s.io/apimachinery/pkg/util/proxy
 wget -O upgradeaware.go https://raw.githubusercontent.com/heyste/kubernetes/debug-proxy/staging/src/k8s.io/apimachinery/pkg/util/proxy/upgradeaware.go
 git branch && git log -1
