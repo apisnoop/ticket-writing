@@ -161,7 +161,7 @@ docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
 * Log Results
 ** Send GET request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XGET http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -189,7 +189,7 @@ I0602 03:35:27.586771       1 upgradeaware.go:236] PLH: w.Header: http.Header{"A
 
 ** Send HEAD request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XHEAD http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -216,7 +216,7 @@ I0602 03:35:56.653568       1 upgradeaware.go:236] PLH: w.Header: http.Header{"A
 
 ** Send DELETE request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XDELETE http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -244,7 +244,7 @@ I0602 03:36:27.941643       1 upgradeaware.go:240] PLH: w.Header: http.Header{"A
 
 ** Send OPTIONS request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XOPTIONS http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -271,7 +271,7 @@ I0602 03:37:03.813618       1 upgradeaware.go:240] PLH: w.Header: http.Header{"A
 
 ** Send PATCH request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XPATCH http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -298,7 +298,7 @@ I0602 03:37:26.890127       1 upgradeaware.go:240] PLH: w.Header: http.Header{"A
 
 ** Send POST request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XPOST http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -325,7 +325,7 @@ I0602 03:37:34.968102       1 upgradeaware.go:240] PLH: w.Header: http.Header{"A
 
 ** Send PUT request and record results
 
-#+BEGIN_SRC bash :results both
+#+BEGIN_SRC bash :exports both
 curl -I -XPUT http://127.0.0.1:11111/api/v1/namespaces/default/pods/debug-proxy/proxy
 export KUBE_API=$(docker exec kind-control-plane crictl ps | grep kube-apiserver | awk '{print $1}')
 docker exec kind-control-plane crictl logs ${KUBE_API} 2>&1 | grep PLH
@@ -449,7 +449,7 @@ select round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0);
 
 ** Proxy endpoints hit as tracked by apisnoop
 
-#+begin_src bash
+#+begin_src bash :exports both
 psql -d apisnoop -h localhost -p 54321 -U apisnoop -c "select distinct endpoint, useragent from testing.audit_event where endpoint like '%Proxy%' limit 10;"
 #+end_src
 
