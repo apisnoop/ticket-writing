@@ -65,9 +65,9 @@ docker images | head -3
 #+begin_src tmate :window kind
 date
 cd /tmp/debug-proxy/apisnoop/kind
-../../kind/kind get clusters
-../../kind/kind create cluster --config=kind+apisnoop.yaml --image=debug-proxy:latest
-../../kind/kind version
+./../../kind/kind get clusters
+./../../kind/kind create cluster --config=kind+apisnoop.yaml --image=debug-proxy:latest
+./../../kind/kind version
 kubectl get nodes -owide
 sleep 5
 kubectl get pods -A
