@@ -7,6 +7,14 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
+* TODO Progress [1/6] :export:
+- [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/APIServiceTest.org][APIServiceTest.org]]
+- [ ] Test approval issue: [[https://github.com/kubernetes/kubernetes/issues/#][kubernetes/kubernetes#]]
+- [ ] Test PR: kuberenetes/kubernetes#
+- [ ] Two weeks soak start date: testgrid-link
+- [ ] Two weeks soak end date:
+- [ ] Test promotion PR: kubernetes/kubernetes#?
+
 * Identifying an untested feature Using APISnoop                     :export:
 
 According to this APIsnoop query, there are still some remaining APIService endpoints which are untested.

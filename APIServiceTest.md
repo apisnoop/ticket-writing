@@ -1,3 +1,12 @@
+# Progress <code>[1/6]</code>
+
+- [x] APISnoop org-flow: [APIServiceTest.org](https://github.com/apisnoop/ticket-writing/blob/master/APIServiceTest.org)
+- [ ] Test approval issue: [kubernetes/kubernetes#](https://github.com/kubernetes/kubernetes/issues/#)
+- [ ] Test PR: kuberenetes/kubernetes#
+- [ ] Two weeks soak start date: testgrid-link
+- [ ] Two weeks soak end date:
+- [ ] Test promotion PR: kubernetes/kubernetes#?
+
 # Identifying an untested feature Using APISnoop
 
 According to this APIsnoop query, there are still some remaining APIService endpoints which are untested.
