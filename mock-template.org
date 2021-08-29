@@ -7,12 +7,13 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 * TODO Progress [2/5]                                                :export:
-- [X] APISnoop org-flow : [[https://github.com/cncf/apisnoop/blob/master/tickets/k8s/][MyEndpoint.org]]
-- [X] test approval issue : [[https://github.com/kubernetes/kubernetes/issues/][kubernetes/kubernetes#]]
-- [ ] test pr : kuberenetes/kubernetes#
-- [ ] two weeks soak start date : testgrid-link
-- [ ] two weeks soak end date :
-- [ ] test promotion pr : kubernetes/kubernetes#?
+- [ ] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/MyEndpoint.org][MyEndpoint.org]]
+- [ ] test approval issue : [[https://issues.k8s.io/][#]]
+- [ ] test pr : [[https://pr.k8s.io/][!]]
+- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
+- [ ] two weeks soak end date : xxxx-xx-xx
+- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+
 * Identifying an untested feature Using APISnoop                     :export:
 
 According to this APIsnoop query, there are still some remaining RESOURCENAME endpoints which are untested.
@@ -32,41 +33,21 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
       where eligible is true
       and category = 'core'
       order by kind, endpoint desc
-      limit 25;
+      limit 5;
   #+end_src
 
  #+RESULTS: untested_stable_core_endpoints
- #+begin_example
-                   endpoint                  |       kind
- --------------------------------------------+------------------
-  createCoreV1NamespacedPodBinding           | Binding
-  createCoreV1NamespacedBinding              | Binding
-  replaceCoreV1NamespacedEvent               | Event
-  readCoreV1NamespacedEvent                  | Event
-  patchCoreV1NamespacedEvent                 | Event
-  listCoreV1NamespacedEvent                  | Event
-  listCoreV1EventForAllNamespaces            | Event
-  deleteCoreV1NamespacedEvent                | Event
-  deleteCoreV1CollectionNamespacedEvent      | Event
-  createCoreV1NamespacedEvent                | Event
-  patchCoreV1NamespacedLimitRange            | LimitRange
-  listCoreV1LimitRangeForAllNamespaces       | LimitRange
-  deleteCoreV1CollectionNamespacedLimitRange | LimitRange
-  replaceCoreV1NamespaceStatus               | Namespace
-  replaceCoreV1NamespaceFinalize             | Namespace
-  readCoreV1NamespaceStatus                  | Namespace
-  patchCoreV1NamespaceStatus                 | Namespace
-  replaceCoreV1NodeStatus                    | Node
-  readCoreV1NodeStatus                       | Node
-  deleteCoreV1CollectionNode                 | Node
-  connectCoreV1PutNodeProxyWithPath          | NodeProxyOptions
-  connectCoreV1PutNodeProxy                  | NodeProxyOptions
-  connectCoreV1PostNodeProxyWithPath         | NodeProxyOptions
-  connectCoreV1PostNodeProxy                 | NodeProxyOptions
-  connectCoreV1PatchNodeProxyWithPath        | NodeProxyOptions
- (25 rows)
+ #+begin_SRC example
+                endpoint               |    kind
+ --------------------------------------+------------
+  createCoreV1NamespacedPodBinding     | Binding
+  createCoreV1NamespacedBinding        | Binding
+  replaceCoreV1NamespacedEvent         | Event
+  patchCoreV1NamespacedLimitRange      | LimitRange
+  listCoreV1LimitRangeForAllNamespaces | LimitRange
+ (5 rows)
 
- #+end_example
+ #+end_SRC
 
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
@@ -87,134 +68,116 @@ e.g below shows a query to find all conformance eligible untested,stable,core en
 5. Delete Namespaced RESOURCENAME via a Collection with a LabelSelector
 
 ** Test the functionality in Go
-   #+NAME: Mock Test In Go
-   #+begin_src go
-     package main
+#+NAME: Mock Test In Go
+#+begin_src go
+package main
 
-     import (
-       // "encoding/json"
-       "fmt"
-       "context"
-       "flag"
-       "os"
-       v1 "k8s.io/api/core/v1"
-       // "k8s.io/client-go/dynamic"
-       // "k8s.io/apimachinery/pkg/runtime/schema"
-       metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-       "k8s.io/client-go/kubernetes"
-       // "k8s.io/apimachinery/pkg/types"
-       "k8s.io/client-go/tools/clientcmd"
-     )
+import (
+  // "encoding/json"
+  "fmt"
+  "context"
+  "flag"
+  "os"
+  v1 "k8s.io/api/core/v1"
+  // "k8s.io/client-go/dynamic"
+  // "k8s.io/apimachinery/pkg/runtime/schema"
+  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+  "k8s.io/client-go/kubernetes"
+  // "k8s.io/apimachinery/pkg/types"
+  "k8s.io/client-go/tools/clientcmd"
+)
 
-     func main() {
-       // uses the current context in kubeconfig
-       kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-       flag.Parse()
-       config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-       if err != nil {
-           fmt.Println(err, "Could not build config from flags")
-           return
-       }
-       // make our work easier to find in the audit_event queries
-       config.UserAgent = "live-test-writing"
-       // creates the clientset
-       ClientSet, _ := kubernetes.NewForConfig(config)
-       // DynamicClientSet, _ := dynamic.NewForConfig(config)
-       // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+func main() {
+  // uses the current context in kubeconfig
+  kubeconfig := flag.String("kubeconfig", fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+  flag.Parse()
+  config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+  if err != nil {
+      fmt.Println(err, "Could not build config from flags")
+      return
+  }
+  // make our work easier to find in the audit_event queries
+  config.UserAgent = "live-test-writing"
+  // creates the clientset
+  ClientSet, _ := kubernetes.NewForConfig(config)
+  // DynamicClientSet, _ := dynamic.NewForConfig(config)
+  // podResource := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
-       // TEST BEGINS HERE
+  // TEST BEGINS HERE
 
-       testPodName := "test-pod"
-       testPodImage := "nginx"
-       testNamespaceName := "default"
+  testPodName := "test-pod"
+  testPodImage := "nginx"
+  testNamespaceName := "default"
 
-       fmt.Println("creating a Pod")
-       testPod := v1.Pod{
-         ObjectMeta: metav1.ObjectMeta{
-           Name: testPodName,
-           Labels: map[string]string{"test-pod-static": "true"},
-         },
-         Spec: v1.PodSpec{
-           Containers: []v1.Container{{
-             Name: testPodName,
-             Image: testPodImage,
-           }},
-         },
-       }
-       _, err = ClientSet.CoreV1().Pods(testNamespaceName).Create(context.TODO(), &testPod, metav1.CreateOptions{})
-       if err != nil {
-           fmt.Println(err, "failed to create Pod")
-           return
-       }
+  fmt.Println("creating a Pod")
+  testPod := v1.Pod{
+    ObjectMeta: metav1.ObjectMeta{
+      Name: testPodName,
+      Labels: map[string]string{"test-pod-static": "true"},
+    },
+    Spec: v1.PodSpec{
+      Containers: []v1.Container{{
+        Name: testPodName,
+        Image: testPodImage,
+      }},
+    },
+  }
+  _, err = ClientSet.CoreV1().Pods(testNamespaceName).Create(context.TODO(), &testPod, metav1.CreateOptions{})
+  if err != nil {
+      fmt.Println(err, "failed to create Pod")
+      return
+  }
 
-       fmt.Println("listing Pods")
-       pods, err := ClientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "test-pod-static=true"})
-       if err != nil {
-           fmt.Println(err, "failed to list Pods")
-           return
-       }
-       podCount := len(pods.Items)
-       if podCount == 0 {
-           fmt.Println("there are no Pods found")
-           return
-       }
-       fmt.Println(podCount, "Pod(s) found")
+  fmt.Println("listing Pods")
+  pods, err := ClientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "test-pod-static=true"})
+  if err != nil {
+      fmt.Println(err, "failed to list Pods")
+      return
+  }
+  podCount := len(pods.Items)
+  if podCount == 0 {
+      fmt.Println("there are no Pods found")
+      return
+  }
+  fmt.Println(podCount, "Pod(s) found")
 
-       fmt.Println("deleting Pod")
-       err = ClientSet.CoreV1().Pods(testNamespaceName).Delete(context.TODO(), testPodName, metav1.DeleteOptions{})
-       if err != nil {
-           fmt.Println(err, "failed to delete the Pod")
-           return
-       }
+  fmt.Println("deleting Pod")
+  err = ClientSet.CoreV1().Pods(testNamespaceName).Delete(context.TODO(), testPodName, metav1.DeleteOptions{})
+  if err != nil {
+      fmt.Println(err, "failed to delete the Pod")
+      return
+  }
 
-       // TEST ENDS HERE
+  // TEST ENDS HERE
 
-       fmt.Println("[status] complete")
+  fmt.Println("[status] complete")
 
-     }
-   #+end_src
-
-   #+RESULTS:
-   #+begin_example
-   creating a Pod
-   listing Pods
-   1 Pod(s) found
-   deleting Pod
-   [status] complete
-   #+end_example
+}
+#+end_src
 
 * Verifying increase in coverage with APISnoop                       :export:
-Discover useragents:
-  #+begin_src sql-mode :eval never-export :exports both :session none
-    select distinct useragent
-      from testing.audit_event
-      where useragent like 'live%';
-  #+end_src
+** Discover useragents
+The useragent /live-test-writing/ will show up here.
 
-  #+RESULTS:
-  :  useragent
-  : -----------
-  : (0 rows)
-  :
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct useragent
+  from testing.audit_event
+  where useragent like 'live%';
+#+end_src
 
-List endpoints hit by the test:
+** List endpoints hit by the test
+All API endpoints that the test interfaces with will show up here.
+
 #+begin_src sql-mode :exports both :session none
 select * from testing.endpoint_hit_by_new_test;
 #+end_src
 
-Display endpoint coverage change:
-  #+begin_src sql-mode :eval never-export :exports both :session none
-    select * from testing.projected_change_in_coverage;
-  #+end_src
+** Display endpoint coverage change
+The effectiveness of the test is displayed here.
 
-  #+RESULTS:
-  #+begin_SRC example
-     category    | total_endpoints | old_coverage | new_coverage | change_in_number
-  ---------------+-----------------+--------------+--------------+------------------
-   test_coverage |             438 |          183 |          183 |                0
-  (1 row)
-
-  #+end_SRC
+#+begin_src sql-mode :eval never-export :exports both :session none
+select * from testing.projected_change_in_coverage;
+#+end_src
 
 * Convert to Ginkgo Test
 ** Ginkgo Test
@@ -222,8 +185,7 @@ Display endpoint coverage change:
   :ID:       gt001z4ch1sc00l
   :END:
 * Final notes                                                        :export:
-If a test with these calls gets merged, **test coverage will go up by N points**
-
+If a test with these calls gets merged, *test coverage will go up by N points*.
 This test is also created with the goal of conformance promotion.
 
 -----
@@ -232,7 +194,6 @@ This test is also created with the goal of conformance promotion.
 /sig architecture
 
 /area conformance
-
 
 * scratch
 #+BEGIN_SRC
