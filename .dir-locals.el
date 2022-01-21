@@ -10,7 +10,7 @@
       (message "START: ii/sql-org-hacks")
       ;; ensure tmpdir is in home dir so noexec / tmp doesn't fail
       (set (make-local-variable 'temporary-file-directory)
-           (concat user-home-directory "tmp/"))
+           (concat (getenv "HOME") "/tmp/"))
       (mkdir temporary-file-directory t)
       (set (make-local-variable 'org-babel-temporary-directory)
            (concat temporary-file-directory "babel"))
