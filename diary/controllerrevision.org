@@ -1,0 +1,36 @@
+#+TITLE: Conformance testing Controller Revision endpoints
+#+DATE: 2021-01-27
+#+AUTHOR: Stephen Heywood
+#+OPTIONS: toc:nil
+#+OPTIONS: html-postamble:nil
+
+** Introduction
+This diary is a work-in-progress, documenting how we create an e2e test for the [[https://apisnoop.cncf.io/1.24.0/stable/apps?conformance-only=true][seven outstanding controller revision endpoints]].
+It starts by checking assumptions I have about controller revision endpoints, sets out an initial design for the work, and then acts as a work diary of my progress.
+
+The bottom of the document has open questions for which I'd appreciate feedback.
+When a question is answered, it'll be removed from that section and its answer woven into this diary.
+
+** Assumptions/Current Understanding
+- Each client-go api call [[https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/client-go/kubernetes/typed/apps/v1/controllerrevision.go#L70-L81][(e.g get)]] to a controller revision is passed through to the rest client which is initially handled by the apiserver.
+- Controller revisions manage the history of other resources, aka Daemonsets and Statefulsets.
+- A [[https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/history/controller_history.go#L61-L88][new controller revision]] is created by the history controller.
+- The hash for a controller revision is created by the [[https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/history/controller_history.go#L90-L104][HashControllerRevision]] function.
+
+** Design Goals
+
+1. Document clearly using a set of [[https://cucumber.io/docs/gherkin/reference/][gherkin scenarios]] the process how controller revision resources interact with a daemon set.
+2. Produce a single e2e test, where each gherkin scenario will be converted into a functional ginkgo test case.
+3. Validate that all endpoints are tested by checking the e2e test with [[https://apisnoop.cncf.io/1.24.0/stable/apps?conformance-only=true][apisnoop]].
+4. This e2e test will complete the testing of all 'stable apps' endpoints with the goal of being [[https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/conformance-tests.md#promoting-tests-to-conformance][promoted to conformance]].
+
+** Process
+*** TODO Double check assumptions and design with team/sig-apps
+*** TODO Create gherkin scenario for each controller revision endpoint
+*** TODO Implement a single e2e test for all controller revision endpoints
+
+** Questions
++ Are my assumptions about controller revision endpoints correct?
++ Are there any issues to look out for when working with "Real History" in e2e tests?
++ Why does the history controller need to use client go requests? e.g. [[https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/history/controller_history.go#L253][L253: 'CreatedControllerRevision' function]]
+  Where is this /create/ call finally getting processed?
