@@ -47,35 +47,36 @@ According to this APIsnoop query, there are still some remaining Controller Revi
 
   #+end_SRC
 
-** Endpoint Notes
-
-- =listAppsV1NamespacedControllerRevision= endpoint has already been tested in another e2e conformance test
-- [x] =listAppsV1ControllerRevisionForAllNamespaces=
-- [x] =readAppsV1NamespacedControllerRevision=
-
 * API Reference and feature documentation                            :export:
 - [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
-- [[https://github.com/kubernetes/kubernetes/tree/master/test/integration/daemonset][https://github.com/kubernetes/kubernetes/tree/master/test/integration/daemonset]]
-- [[https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/daemon/update.go#L327]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/controller-revision-v1/][Kubernetes API > Workload Resources > Controller Revision]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/apps/v1/controllerrevision.go#L42-L54][client-go: apps/v1/controllerrevision.go]]
+
+* Research                                                           :export:
+
+Diary notes: [[https://github.com/apisnoop/ticket-writing/blob/diary/diary/controllerrevision.org][Conformance testing Controller Revision endpoints]]
 
 * The mock test                                                      :export:
-** Test outline
-1.
+** Test outline (WIP)
 
-2.
+Note: The outline covers the following endpoints only; =listAppsV1ControllerRevisionForAllNamespaces=, =readAppsV1NamespacedControllerRevision=
 
-3.
+1. Create a daemon set with a static label. Confirm that the pods are running.
 
-4.
+2. Record the list all controller revisions in the cluster, filtered by the static label.
 
-5.
+3. Confirm that the controller revision for the current daemon set has been found.
+
+4. Confirm that the revision =read= for each matching controller revision is not =nil=.
 
 ** Test the functionality in Go
+
+Exploratory e2e test code: [[https://github.com/ii/kubernetes/blob/controller-revisions/test/e2e/apps/controller_revision.go][ii/kubernetes.../apps/controller_revision.go]]
 
 * Verifying increase in coverage with APISnoop                       :export:
 ** Listing endpoints hit by the new e2e test
 
-This query shows the endpoints hit within a short period of running the e2e test
+This query shows the following endpoints are hit within a short period of running this e2e test
 
 #+begin_src sql-mode :eval never-export :exports both :session none
 select distinct  endpoint, right(useragent,58) AS useragent
@@ -84,7 +85,7 @@ where endpoint ilike '%ControllerRevision%'
 and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
 and useragent like 'e2e%should%'
 order by endpoint
-limit 60;
+limit 10;
 #+end_src
 
 #+RESULTS:
@@ -97,7 +98,7 @@ limit 60;
 
 #+end_SRC
 
-* Final notes :export:
+* Final notes                                                        :export:
 
 If a test with these calls gets merged, *test coverage will go up by x points*
 
