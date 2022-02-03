@@ -53,13 +53,19 @@ Diary notes: [Conformance testing Controller Revision endpoints](https://github.
 
 Note: The outline covers the following endpoints only; `listAppsV1ControllerRevisionForAllNamespaces`, `readAppsV1NamespacedControllerRevision`
 
-1.  Create a daemon set with a static label. Confirm that the pods are running.
+```
+Feature: Test all current untested Controller Revision endpoints
 
-2.  Record the list all controller revisions in the cluster, filtered by the static label.
+Scenario: the test lists controller revisions in all namespaces
+  Given the e2e test has as a running daemonset
+  When the test requests all controller revisions by a label selector in all namespaces
+  Then the test must receive a list controller revisions that is not nil
 
-3.  Confirm that the controller revision for the current daemon set has been found.
-
-4.  Confirm that the revision `read` for each matching controller revision is not `nil`.
+Scenario: the test reads a controller revision
+  Given the e2e test has a list of controller revisions
+  When the test reads a controller revision
+  Then the test must return a controller revision that matches the controller revision for the running daemonset which is not nil
+```
 
 ## Test the functionality in Go
 
