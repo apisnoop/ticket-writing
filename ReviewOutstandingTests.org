@@ -1,0 +1,76 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Review Outstanding Tests
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* Identifying an untested feature Using APISnoop :export:
+
+There should be 51 tests here but I only see 43 untested endpoints
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%'
+      order by kind, endpoint desc
+      limit 60;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                          endpoint                         |                                      path                                      |           kind
+  ---------------------------------------------------------+--------------------------------------------------------------------------------+--------------------------
+   replaceApiregistrationV1APIServiceStatus                | /apis/apiregistration.k8s.io/v1/apiservices/{name}/status                      | APIService
+   replaceApiregistrationV1APIService                      | /apis/apiregistration.k8s.io/v1/apiservices/{name}                             | APIService
+   patchApiregistrationV1APIServiceStatus                  | /apis/apiregistration.k8s.io/v1/apiservices/{name}/status                      | APIService
+   deleteApiregistrationV1CollectionAPIService             | /apis/apiregistration.k8s.io/v1/apiservices                                    | APIService
+   createCoreV1NamespacedPodBinding                        | /api/v1/namespaces/{namespace}/pods/{name}/binding                             | Binding
+   createCoreV1NamespacedBinding                           | /api/v1/namespaces/{namespace}/bindings                                        | Binding
+   replaceAppsV1NamespacedControllerRevision               | /apis/apps/v1/namespaces/{namespace}/controllerrevisions/{name}                | ControllerRevision
+   readAppsV1NamespacedControllerRevision                  | /apis/apps/v1/namespaces/{namespace}/controllerrevisions/{name}                | ControllerRevision
+   patchAppsV1NamespacedControllerRevision                 | /apis/apps/v1/namespaces/{namespace}/controllerrevisions/{name}                | ControllerRevision
+   listAppsV1ControllerRevisionForAllNamespaces            | /apis/apps/v1/controllerrevisions                                              | ControllerRevision
+   deleteAppsV1NamespacedControllerRevision                | /apis/apps/v1/namespaces/{namespace}/controllerrevisions/{name}                | ControllerRevision
+   deleteAppsV1CollectionNamespacedControllerRevision      | /apis/apps/v1/namespaces/{namespace}/controllerrevisions                       | ControllerRevision
+   createAppsV1NamespacedControllerRevision                | /apis/apps/v1/namespaces/{namespace}/controllerrevisions                       | ControllerRevision
+   replaceCoreV1NamespacedEvent                            | /api/v1/namespaces/{namespace}/events/{name}                                   | Event
+   replaceBatchV1NamespacedJobStatus                       | /apis/batch/v1/namespaces/{namespace}/jobs/{name}/status                       | Job
+   readBatchV1NamespacedJobStatus                          | /apis/batch/v1/namespaces/{namespace}/jobs/{name}/status                       | Job
+   patchBatchV1NamespacedJobStatus                         | /apis/batch/v1/namespaces/{namespace}/jobs/{name}/status                       | Job
+   patchBatchV1NamespacedJob                               | /apis/batch/v1/namespaces/{namespace}/jobs/{name}                              | Job
+   listBatchV1JobForAllNamespaces                          | /apis/batch/v1/jobs                                                            | Job
+   deleteBatchV1CollectionNamespacedJob                    | /apis/batch/v1/namespaces/{namespace}/jobs                                     | Job
+   patchCoreV1NamespacedLimitRange                         | /api/v1/namespaces/{namespace}/limitranges/{name}                              | LimitRange
+   listCoreV1LimitRangeForAllNamespaces                    | /api/v1/limitranges                                                            | LimitRange
+   deleteCoreV1CollectionNamespacedLimitRange              | /api/v1/namespaces/{namespace}/limitranges                                     | LimitRange
+   createAuthorizationV1NamespacedLocalSubjectAccessReview | /apis/authorization.k8s.io/v1/namespaces/{namespace}/localsubjectaccessreviews | LocalSubjectAccessReview
+   replaceCoreV1NamespaceStatus                            | /api/v1/namespaces/{name}/status                                               | Namespace
+   replaceCoreV1NamespaceFinalize                          | /api/v1/namespaces/{name}/finalize                                             | Namespace
+   replaceCoreV1Namespace                                  | /api/v1/namespaces/{name}                                                      | Namespace
+   readCoreV1NamespaceStatus                               | /api/v1/namespaces/{name}/status                                               | Namespace
+   patchCoreV1NamespaceStatus                              | /api/v1/namespaces/{name}/status                                               | Namespace
+   replaceCoreV1NodeStatus                                 | /api/v1/nodes/{name}/status                                                    | Node
+   readCoreV1NodeStatus                                    | /api/v1/nodes/{name}/status                                                    | Node
+   deleteCoreV1CollectionNode                              | /api/v1/nodes                                                                  | Node
+   connectCoreV1PostNamespacedPodAttach                    | /api/v1/namespaces/{namespace}/pods/{name}/attach                              | PodAttachOptions
+   connectCoreV1GetNamespacedPodAttach                     | /api/v1/namespaces/{namespace}/pods/{name}/attach                              | PodAttachOptions
+   replaceCoreV1NamespacedPodTemplate                      | /api/v1/namespaces/{namespace}/podtemplates/{name}                             | PodTemplate
+   replaceCoreV1NamespacedResourceQuotaStatus              | /api/v1/namespaces/{namespace}/resourcequotas/{name}/status                    | ResourceQuota
+   readCoreV1NamespacedResourceQuotaStatus                 | /api/v1/namespaces/{namespace}/resourcequotas/{name}/status                    | ResourceQuota
+   patchCoreV1NamespacedResourceQuotaStatus                | /api/v1/namespaces/{namespace}/resourcequotas/{name}/status                    | ResourceQuota
+   patchCoreV1NamespacedResourceQuota                      | /api/v1/namespaces/{namespace}/resourcequotas/{name}                           | ResourceQuota
+   listCoreV1ResourceQuotaForAllNamespaces                 | /api/v1/resourcequotas                                                         | ResourceQuota
+   deleteCoreV1CollectionNamespacedResourceQuota           | /api/v1/namespaces/{namespace}/resourcequotas                                  | ResourceQuota
+   createAuthorizationV1SelfSubjectRulesReview             | /apis/authorization.k8s.io/v1/selfsubjectrulesreviews                          | SelfSubjectRulesReview
+   logFileHandler                                          | /logs/{logpath}                                                                |
+  (43 rows)
+
+  #+end_SRC
