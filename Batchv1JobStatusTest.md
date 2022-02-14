@@ -1,26 +1,17 @@
-# -*- ii: apisnoop; -*-
-#+TITLE: BatchV1 Job Status Test - +3
-#+AUTHOR: ii team
-#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
-#+OPTIONS: toc:nil tags:nil todo:nil
-#+EXPORT_SELECT_TAGS: export
-#+PROPERTY: header-args:sql-mode :product postgres
+# Progress <code>[1/6]</code>
 
-
-* TODO Progress [1/6]                                                :export:
-- [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/Batchv1JobStatusTest.org][Batchv1JobStatusTest.org]]
-- [ ] Test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] Test PR : [[https://pr.k8s.io/][!]]
-- [ ] Two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
+- [x] APISnoop org-flow: [Batchv1JobStatusTest.org](https://github.com/apisnoop/ticket-writing/blob/master/Batchv1JobStatusTest.org)
+- [ ] Test approval issue : [#](https://issues.k8s.io/)
+- [ ] Test PR : [!](https://pr.k8s.io/)
+- [ ] Two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
 - [ ] Two weeks soak end date : xxxx-xx-xx
-- [ ] Test promotion PR : [[https://pr.k8s.io/][!]]
+- [ ] Test promotion PR : [!](https://pr.k8s.io/)
 
-* Identifying an untested feature Using APISnoop                     :export:
+# Identifying an untested feature Using APISnoop
 
 According to this APIsnoop query, there are still some remaining Job status endpoints which are untested.
 
-  #+NAME: untested_stable_core_endpoints
-  #+begin_src sql-mode :eval never-export :exports both :session none
+```sql-mode
     SELECT
       endpoint,
       path,
@@ -30,10 +21,9 @@ According to this APIsnoop query, there are still some remaining Job status endp
       and endpoint ilike '%JobStatus'
       order by kind, endpoint desc
       limit 10;
-  #+end_src
+```
 
-  #+RESULTS: untested_stable_core_endpoints
-  #+begin_SRC example
+```example
                endpoint              |                           path                           | kind
   -----------------------------------+----------------------------------------------------------+------
    replaceBatchV1NamespacedJobStatus | /apis/batch/v1/namespaces/{namespace}/jobs/{name}/status | Job
@@ -41,29 +31,30 @@ According to this APIsnoop query, there are still some remaining Job status endp
    patchBatchV1NamespacedJobStatus   | /apis/batch/v1/namespaces/{namespace}/jobs/{name}/status | Job
   (3 rows)
 
-  #+end_SRC
+```
 
-* API Reference and feature documentation                            :export:
-- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
-- [[https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/job-v1/][Kubernetes API / Workload Resources / Job]]
-- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/batch/v1/job.go][client-go - Job]]
+# API Reference and feature documentation
 
-* Research                                                           :export:
-** Locating current e2e test for similar endpoints
+- [Kubernetes API Reference Docs](https://kubernetes.io/docs/reference/kubernetes-api/)
+- [Kubernetes API / Workload Resources / Job](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/job-v1/)
+- [client-go - Job](https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/batch/v1/job.go)
+
+# Research
+
+## Locating current e2e test for similar endpoints
 
 There are conformance tests for CronJob status endpoints already
 
-#+begin_src sql-mode :eval never-export :exports both :session none
+```sql-mode
 select distinct  endpoint, right(useragent,59) AS useragent
 from public.audit_event
 where endpoint ilike '%JobStatus%'
 and useragent ilike '%Conformance%'
 order by endpoint
 limit 10;
-#+end_src
+```
 
-#+RESULTS:
-#+begin_SRC example
+```example
                endpoint                |                          useragent
 ---------------------------------------+-------------------------------------------------------------
  patchBatchV1NamespacedCronJobStatus   | CronJob should support CronJob API operations [Conformance]
@@ -71,18 +62,19 @@ limit 10;
  replaceBatchV1NamespacedCronJobStatus | CronJob should support CronJob API operations [Conformance]
 (3 rows)
 
-#+end_SRC
+```
 
-- [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/cronjob.go#L306-L462]]
+- <https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apps/cronjob.go#L306-L462>
 
-#+begin_src
+```
 framework.ConformanceIt("should support CronJob API operations", func() {
-#+end_src
+```
 
-* The mock test                                                      :export:
-** Test outline
+# The mock test
 
-#+begin_src
+## Test outline
+
+```
 Feature: Test three Job Status api endpoints
 
 Scenario: the test patches a job status subresource
@@ -92,30 +84,29 @@ Scenario: the test patches a job status subresource
   Then the requested action is accepted without any error
   And the applied status subresource is accepted
   And the applied annotation is found
-#+end_src
+```
 
-#+begin_src
+```
 Scenario: the test updates a job status subresource
   Given the e2e test has a running job
   When the test updates the job status subresource without any conflict
   Then the requested action is accepted without any error
   And the appliced status subresource is accepted
-#+end_src
+```
 
-#+begin_src
+```
 Scenario: the test reads a job status subresource
   Given the e2e test has a running job
   When a dynamic client gets the status subresource
   Then the requested action is accepted without any error
   And a matching set of UIDs are found
-#+end_src
+```
 
-** Test the functionality in Go
+## Test the functionality in Go
 
-Using the existing [[https://github.com/ii/kubernetes/blob/test-job-status/test/e2e/apps/job.go#L370-L425][cronjob status test]] as a template, a new [[https://github.com/ii/kubernetes/blob/test-job-status/test/e2e/apps/job.go#L370-L425][ginkgo test]] for job test has been created.
-The e2e logs for this test are listed below.
+Using the existing [cronjob status test](https://github.com/ii/kubernetes/blob/test-job-status/test/e2e/apps/job.go#L370-L425) as a template, a new [ginkgo test](https://github.com/ii/kubernetes/blob/test-job-status/test/e2e/apps/job.go#L370-L425) for job test has been created. The e2e logs for this test are listed below.
 
-#+begin_src
+```
 [sig-apps] Job
   should verify changes to a job status
   /home/ii/go/src/k8s.io/kubernetes/test/e2e/apps/job.go:370
@@ -139,14 +130,15 @@ STEP: get /status
   /home/ii/go/src/k8s.io/kubernetes/test/e2e/framework/framework.go:186
 Feb 15 08:31:50.420: INFO: Waiting up to 3m0s for all (but 0) nodes to be ready
 STEP: Destroying namespace "job-2408" for this suite.
-#+end_src
+```
 
-* Verifying increase in coverage with APISnoop                       :export:
-** Listing endpoints hit by the new e2e test
+# Verifying increase in coverage with APISnoop
+
+## Listing endpoints hit by the new e2e test
 
 This query shows the endpoints hit within a short period of running the e2e test
 
-#+begin_src sql-mode :eval never-export :exports both :session none
+```sql-mode
 select distinct  endpoint, right(useragent,41) AS useragent
 from testing.audit_event
 where endpoint ilike '%JobStatus%'
@@ -154,10 +146,9 @@ and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) 
 and useragent like 'e2e%should%'
 order by endpoint
 limit 10;
-#+end_src
+```
 
-#+RESULTS:
-#+begin_SRC example
+```example
              endpoint              |                 useragent
 -----------------------------------+-------------------------------------------
  patchBatchV1NamespacedJobStatus   | Job should verify changes to a job status
@@ -165,29 +156,18 @@ limit 10;
  replaceBatchV1NamespacedJobStatus | Job should verify changes to a job status
 (3 rows)
 
-#+end_SRC
+```
 
-* Final notes                                                        :export:
+# Final notes
 
-If a test with these calls gets merged, *test coverage will go up by 3 points*
+If a test with these calls gets merged, **test coverage will go up by 3 points**
 
 This test is also created with the goal of conformance promotion.
 
------  
-/sig testing  
+---
 
-/sig architecture  
+/sig testing
 
-/area conformance  
+/sig architecture
 
-* Options                                                       :neverexport:
-** Delete all events after postgres initialization
-   #+begin_src sql-mode :eval never-export :exports both :session none
-   delete from audit_event where bucket = 'apisnoop' and job='live';
-   #+end_src
-
-* Footnotes                                                     :neverexport:
-  :PROPERTIES:
-  :CUSTOM_ID: footnotes
-  :END:
-
+/area conformance
