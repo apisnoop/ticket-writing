@@ -1,0 +1,116 @@
+# -*- ii: apisnoop; -*-
+#+TITLE:  patchCoreV1NamespacedPodStatus Test - +1
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+* TODO Progress [1/6]                                                :export:
+- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/patchCoreV1NamespacedPodStatus.org][patchCoreV1NamespacedPodStatus.org]]
+- [ ] test approval issue : [[https://issues.k8s.io/][#]]
+- [ ] test pr : [[https://pr.k8s.io/][!]]
+- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
+- [ ] two weeks soak end date : xxxx-xx-xx
+- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+
+* Identifying an untested feature Using APISnoop                     :export:
+
+
+The =patchCoreV1NamespacedPodStatus= endpoint as seen on the [[https://apisnoop.cncf.io/1.24.0/stable/core/patchCoreV1NamespacedPodStatus?conformance-only=true][apisnoop.cncf.io]] website is tested but not part of conformance.
+The APIsnoop query below shows the current e2e tests that hit this endpoint.
+
+  #+begin_src sql-mode :eval never-export :exports both :session none
+  select distinct  endpoint, right(useragent,68) AS useragent
+  from public.audit_event
+  where endpoint ilike 'patch%PodStatus'
+  and useragent like '%e2e%'
+  order by endpoint
+  limit 10;
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+              endpoint            |                              useragent
+  --------------------------------+----------------------------------------------------------------------
+   patchCoreV1NamespacedPodStatus |  -- [sig-api-machinery] ServerSideApply should work for subresources
+   patchCoreV1NamespacedPodStatus | [sig-node] Pods should support pod readiness gates [NodeConformance]
+  (2 rows)
+
+  #+end_SRC
+
+The [[https://github.com/kubernetes/kubernetes/blob/d5263feb038825197ab426237b111086822366be/test/e2e/apimachinery/apply.go#L162-L263][sig-api-machinery test]] will be reviewed and checked to see that it meets the [[https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/conformance-tests.md#conformance-test-requirements][requirements for promotion to conformance]].
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/][client-go]]
+
+* Review current e2e test                                            :export:
+
+The general structure and methods of testing the Pod =/status= subresource looks to be okay.
+One minor issue that has been noticed is the image used for this test is the standard =nginx= image.
+The current image can be swapped for a standard e2e image with only a [[https://github.com/ii/kubernetes/commit/994191044262b15c75f37d0ff91e90f414f223e1][small change]].
+
+* Verifying increase in coverage with APISnoop                       :export:
+** Listing endpoints hit by the updated e2e test
+
+This query shows the endpoints hit within a short period of running the e2e test.
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct  endpoint, right(useragent,44) AS useragent
+from testing.audit_event
+where endpoint ilike '%'
+and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+and useragent like 'e2e%should%'
+order by endpoint
+limit 15;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+              endpoint              |                  useragent
+------------------------------------+----------------------------------------------
+ createCoreV1Namespace              | ServerSideApply should work for subresources
+ createCoreV1NamespacedPod          | ServerSideApply should work for subresources
+ deleteAppsV1NamespacedDeployment   | ServerSideApply should work for subresources
+ deleteCoreV1Namespace              | ServerSideApply should work for subresources
+ deleteCoreV1NamespacedPod          | ServerSideApply should work for subresources
+ listCoreV1NamespacedConfigMap      | ServerSideApply should work for subresources
+ listCoreV1NamespacedServiceAccount | ServerSideApply should work for subresources
+ listCoreV1Node                     | ServerSideApply should work for subresources
+ listPolicyV1beta1PodSecurityPolicy | ServerSideApply should work for subresources
+ patchCoreV1NamespacedPod           | ServerSideApply should work for subresources
+ patchCoreV1NamespacedPodStatus     | ServerSideApply should work for subresources
+ readCoreV1NamespacedPod            | ServerSideApply should work for subresources
+(12 rows)
+
+#+end_SRC
+
+* Final notes :export:
+These changes to the test are made with the goal of conformance promotion.
+After promotion to conformance the current *test coverage will go up by 1 points*.
+
+-----
+/sig testing
+
+/sig architecture
+
+/area conformance
+
+* scratch
+#+BEGIN_SRC
+CREATE OR REPLACE VIEW "public"."untested_stable_endpoints" AS
+  SELECT
+    ec.*,
+    ao.description,
+    ao.http_method
+    FROM endpoint_coverage ec
+           JOIN
+           api_operation_material ao ON (ec.bucket = ao.bucket AND ec.job = ao.job AND ec.operation_id = ao.operation_id)
+   WHERE ec.level = 'stable'
+     AND tested is false
+     AND ao.deprecated IS false
+     AND ec.job != 'live'
+   ORDER BY hit desc
+            ;
+#+END_SRC
