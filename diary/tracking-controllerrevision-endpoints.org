@@ -1,0 +1,200 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: How much of an e2e test can APISnoop track?
+#+AUTHOR: Stephen Heywood
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* Background :export:
+
+The last set of SIG-Apps endpoints to test for conformance are [[https://apisnoop.cncf.io/1.24.0/stable/apps?conformance-only=true][ControllerRevision]], which are used by both daemonset and stateful resources.
+To show why these endpoints are not seen by APISnoop in the current set of Daemonset tests a small demo test has been created.
+This [[https://github.com/heyste/kubernetes/blob/explore-controller-revisions/test/e2e/apps/controller_revision.go#L99-L105][e2e test]] just calls =kubectl create -f= [[https://github.com/heyste/kubernetes/blob/explore-controller-revisions/test/fixtures/doc-yaml/user-guide/daemonset.yaml][daemonset.yaml]].
+The yaml used was sourced from [[https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/][Kubernetes.io]].
+
+The following set of sql queries from apisnoop show which useragents hit various endpoints.
+The key finding is that APISnoop can track the various components within the cluster, but it can't associate the =ControllerRevision= endpoints with this e2e test directly.
+
+The only way for that to happen would require testing the endpoints directly in an e2e test, which has been started in this [[https://github.com/ii/kubernetes/blob/766d02fdd32a95c9a88cec11ad8c1e2a96451d2c/test/e2e/apps/controller_revision.go#L120-L135][e2e test]] and reported by apisoop in this [[https://github.com/ii/kubernetes/blob/766d02fdd32a95c9a88cec11ad8c1e2a96451d2c/test/e2e/apps/controller_revision.go#L120-L135][issue]].
+All conformance tests that track a status endpoint use this pattern.
+
+* Options :neverexport:
+** Delete all events after postgres initialization
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+delete  from testing.audit_event;
+#+end_src
+
+* Breaking down useragents & endpoints :export:
+** Which daemon set endpoints are associated with this e2e test name?
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct  endpoint, right(useragent,41) AS useragent
+from testing.audit_event
+where endpoint ilike '%DaemonSet%'
+and useragent like 'e2e%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+            endpoint             |                 useragent
+---------------------------------+-------------------------------------------
+ deleteAppsV1NamespacedDaemonSet | [Serial] explore kubectl create daemonset
+ listAppsV1NamespacedDaemonSet   | [Serial] explore kubectl create daemonset
+ readAppsV1NamespacedDaemonSet   | [Serial] explore kubectl create daemonset
+(3 rows)
+
+#+end_SRC
+
+** List all endpoints with the useragent =explore kubectl create daemonset=
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct endpoint, right(useragent,41) AS useragent
+from testing.audit_event
+where endpoint ilike '%'
+and useragent like 'e2e%'
+order by endpoint
+limit 20;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+              endpoint              |                 useragent
+------------------------------------+-------------------------------------------
+ createCoreV1Namespace              | [Serial] explore kubectl create daemonset
+ createCoreV1NamespacedPod          | [Serial] explore kubectl create daemonset
+ deleteAppsV1NamespacedDaemonSet    | [Serial] explore kubectl create daemonset
+ deleteCoreV1Namespace              | [Serial] explore kubectl create daemonset
+ listAppsV1NamespacedDaemonSet      | [Serial] explore kubectl create daemonset
+ listCoreV1NamespacedConfigMap      | [Serial] explore kubectl create daemonset
+ listCoreV1NamespacedPod            | [Serial] explore kubectl create daemonset
+ listCoreV1NamespacedServiceAccount | [Serial] explore kubectl create daemonset
+ listCoreV1Node                     | [Serial] explore kubectl create daemonset
+ listPolicyV1beta1PodSecurityPolicy | [Serial] explore kubectl create daemonset
+ patchCoreV1Namespace               | [Serial] explore kubectl create daemonset
+ readAppsV1NamespacedDaemonSet      | [Serial] explore kubectl create daemonset
+ readCoreV1Node                     | [Serial] explore kubectl create daemonset
+(13 rows)
+
+#+end_SRC
+
+** When did this test start?
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select release_date::BIGINT, endpoint, right(useragent,41) AS useragent
+from testing.audit_event
+where endpoint ilike '%'
+and useragent like 'e2e%'
+order by release_date
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ release_date  |              endpoint              |                 useragent
+---------------+------------------------------------+-------------------------------------------
+ 1647485846265 | listCoreV1NamespacedServiceAccount | [Serial] explore kubectl create daemonset
+ 1647485846265 | createCoreV1Namespace              | [Serial] explore kubectl create daemonset
+ 1647485846265 | listCoreV1NamespacedServiceAccount | [Serial] explore kubectl create daemonset
+ 1647485846265 | listCoreV1NamespacedServiceAccount | [Serial] explore kubectl create daemonset
+ 1647485846266 | listCoreV1NamespacedConfigMap      | [Serial] explore kubectl create daemonset
+ 1647485846266 | listCoreV1NamespacedConfigMap      | [Serial] explore kubectl create daemonset
+ 1647485846266 | listCoreV1NamespacedServiceAccount | [Serial] explore kubectl create daemonset
+ 1647485846266 | listCoreV1NamespacedServiceAccount | [Serial] explore kubectl create daemonset
+ 1647485846266 | createCoreV1NamespacedPod          | [Serial] explore kubectl create daemonset
+ 1647485846266 | createCoreV1NamespacedPod          | [Serial] explore kubectl create daemonset
+(10 rows)
+
+#+end_SRC
+
+** When did the test finish?
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select release_date::BIGINT, endpoint, right(useragent,41) AS useragent
+from testing.audit_event
+where endpoint ilike '%'
+and useragent like 'e2e%'
+order by release_date DESC
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ release_date  |           endpoint            |                 useragent
+---------------+-------------------------------+-------------------------------------------
+ 1647486028676 | readCoreV1Node                | [Serial] explore kubectl create daemonset
+ 1647486028676 | listCoreV1Node                | [Serial] explore kubectl create daemonset
+ 1647486028676 | deleteCoreV1Namespace         | [Serial] explore kubectl create daemonset
+ 1647486028676 | listCoreV1NamespacedPod       | [Serial] explore kubectl create daemonset
+ 1647486028676 | listCoreV1NamespacedPod       | [Serial] explore kubectl create daemonset
+ 1647486028676 | listCoreV1Node                | [Serial] explore kubectl create daemonset
+ 1647486028676 | listAppsV1NamespacedDaemonSet | [Serial] explore kubectl create daemonset
+ 1647486022831 | listAppsV1NamespacedDaemonSet | [Serial] explore kubectl create daemonset
+ 1647486022831 | deleteCoreV1Namespace         | [Serial] explore kubectl create daemonset
+ 1647486022831 | listCoreV1NamespacedPod       | [Serial] explore kubectl create daemonset
+(10 rows)
+
+#+end_SRC
+
+** Between the start and end times list all daemonset endpoints with their useragent
+
+- START: 1647485846265
+- END:   1647486028676
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct endpoint, right(useragent,61) AS useragent
+from testing.audit_event
+where endpoint ilike '%DaemonSet%'
+and release_date::BIGINT between 1647485846265 and 1647486028676
+order by useragent
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                 endpoint                  |                           useragent
+-------------------------------------------+---------------------------------------------------------------
+ deleteAppsV1CollectionNamespacedDaemonSet | 6c093d/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedDaemonSet             | 6c093d/system:serviceaccount:kube-system:namespace-controller
+ replaceAppsV1NamespacedDaemonSetStatus    | c093d/system:serviceaccount:kube-system:daemon-set-controller
+ deleteAppsV1NamespacedDaemonSet           | Controller revision [Serial] explore kubectl create daemonset
+ listAppsV1NamespacedDaemonSet             | Controller revision [Serial] explore kubectl create daemonset
+ readAppsV1NamespacedDaemonSet             | Controller revision [Serial] explore kubectl create daemonset
+ listAppsV1NamespacedDaemonSet             | Go-http-client/2.0
+ createAppsV1NamespacedDaemonSet           | kubectl/v1.22.1 (linux/amd64) kubernetes/632ed30
+ listAppsV1DaemonSetForAllNamespaces       | v2.2.0
+(9 rows)
+
+#+end_SRC
+
+** Between the start and end times list all controller revision endpoints with their useragent
+
+- START: 1647485846265
+- END:   1647486028676
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct endpoint, right(useragent,61) AS useragent
+from testing.audit_event
+where endpoint ilike '%ControllerRevision%'
+and release_date::BIGINT between 1647485846265 and 1647486028676
+order by useragent
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                      endpoint                      |                           useragent
+----------------------------------------------------+---------------------------------------------------------------
+ deleteAppsV1CollectionNamespacedControllerRevision | 6c093d/system:serviceaccount:kube-system:namespace-controller
+ listAppsV1NamespacedControllerRevision             | 6c093d/system:serviceaccount:kube-system:namespace-controller
+ createAppsV1NamespacedControllerRevision           | c093d/system:serviceaccount:kube-system:daemon-set-controller
+ deleteAppsV1NamespacedControllerRevision           | d/system:serviceaccount:kube-system:generic-garbage-collector
+ readAppsV1NamespacedControllerRevision             | d/system:serviceaccount:kube-system:generic-garbage-collector
+(5 rows)
+
+#+end_SRC
+
