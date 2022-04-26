@@ -1,0 +1,153 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Write CoreV1ResourceQuota Test - +3
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* TODO Progress [1/6] :export:
+- [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ResourceQuotaTest.org][CoreV1ResourceQuotaTest.org]]
+- [ ] test approval issue : [[https://issues.k8s.io/][#]]
+- [ ] test pr : [[https://pr.k8s.io/][!]]
+- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
+- [ ] two weeks soak end date : xxxx-xx-xx
+- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+
+* Identifying an untested feature Using APISnoop                     :export:
+
+According to this APIsnoop query, there is still some remaining ResourceQuota endpoints which are untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%ResourceQuota%'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                     endpoint                    |                            path                             |     kind
+  -----------------------------------------------+-------------------------------------------------------------+---------------
+   replaceCoreV1NamespacedResourceQuotaStatus    | /api/v1/namespaces/{namespace}/resourcequotas/{name}/status | ResourceQuota
+   readCoreV1NamespacedResourceQuotaStatus       | /api/v1/namespaces/{namespace}/resourcequotas/{name}/status | ResourceQuota
+   patchCoreV1NamespacedResourceQuotaStatus      | /api/v1/namespaces/{namespace}/resourcequotas/{name}/status | ResourceQuota
+   patchCoreV1NamespacedResourceQuota            | /api/v1/namespaces/{namespace}/resourcequotas/{name}        | ResourceQuota
+   listCoreV1ResourceQuotaForAllNamespaces       | /api/v1/resourcequotas                                      | ResourceQuota
+   deleteCoreV1CollectionNamespacedResourceQuota | /api/v1/namespaces/{namespace}/resourcequotas               | ResourceQuota
+  (6 rows)
+
+  #+end_SRC
+
+The Status endpoints will be addressed in another test.
+
+* API Reference and feature documentation                            :export:
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/resource-quota-v1/][Kubernetes API / Policy Resource / ResourceQuota]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/resourcequota.go][client-go - ResourceQuota]]
+
+* Test Outline :export:
+
+#+begin_src
+Feature: Test deleteCollection, list(All Namespaces) and patch ResourceQuota api endpoints
+#+end_src
+
+- listCoreV1ResourceQuotaForAllNamespaces
+
+#+begin_src
+Scenario: the test lists a ResourceQuota
+  Given the e2e test has created a ResourceQuota with a label
+  When the test lists all ResourceQuotas with a label selector
+  Then the requested action is accepted without any error
+  And one ResourceQuota is found
+#+end_src
+
+- patchCoreV1NamespacedResourceQuota
+
+#+begin_src
+Scenario: the test patches a ResourceQuota
+  Given the e2e test has a ResourceQuota
+  And a payload is created with a new label
+  When the test patches the ResourceQuota
+  Then the requested action is accepted without any error
+  And the newly applied label is found
+#+end_src
+
+- deleteCoreV1CollectionNamespacedResourceQuota
+
+#+begin_src
+Scenario: the test deletes a ResourceQuota
+  Given the e2e test has a ResourceQuota with a label
+  When the test deletes the ResourceQuota via deleteCollection with a label selector
+  Then the requested action is accepted without any error
+  And the ResourceQuota is not found
+#+end_src
+
+* E2E Test :export:
+
+Using a number of existing e2e test practices a new [[https://github.com/ii/kubernetes/blob/create-resourcequota-test/test/e2e/apimachinery/resource_quota.go#L922-L971][ginkgo test]] has been created for pod templates.
+The e2e logs for this test are listed below.
+
+#+begin_src
+[It] should manage the lifecycle of a ResourceQuota
+  /home/ii/go/src/k8s.io/kubernetes/test/e2e/apimachinery/resource_quota.go:922
+STEP: Creating a ResourceQuota
+STEP: Getting a ResourceQuotaSTEP: Listing all ResourceQuotas with LabelSelector
+STEP: Patching the ResourceQuotaSTEP: Deleting a Collection of ResourceQuotas
+STEP: Verifying the deleted ResourceQuota
+#+end_src
+
+* Verifying increase in coverage with APISnoop :export:
+** Listing endpoints hit by the new e2e test
+
+This query shows the endpoints hit within a short period of running the e2e test
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct  endpoint, right(useragent,46) AS useragent
+from testing.audit_event
+where endpoint ilike '%ResourceQuota%'
+and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+and useragent like 'e2e%should%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                   endpoint                    |                   useragent
+-----------------------------------------------+------------------------------------------------
+ createCoreV1NamespacedResourceQuota           | should manage the lifecycle of a ResourceQuota
+ deleteCoreV1CollectionNamespacedResourceQuota | should manage the lifecycle of a ResourceQuota
+ listCoreV1ResourceQuotaForAllNamespaces       | should manage the lifecycle of a ResourceQuota
+ patchCoreV1NamespacedResourceQuota            | should manage the lifecycle of a ResourceQuota
+ readCoreV1NamespacedResourceQuota             | should manage the lifecycle of a ResourceQuota
+(5 rows)
+
+#+end_SRC
+
+* Final notes :export:
+
+If a test with these calls gets merged, *test coverage will go up by 3 points*
+
+This test is also created with the goal of conformance promotion.
+
+-----  
+/sig testing  
+
+/sig architecture  
+
+/area conformance  
+
+* Options :neverexport:
+** Delete all events after postgres initialization
+   #+begin_src sql-mode :eval never-export :exports both :session none
+   delete from audit_event where bucket = 'apisnoop' and job='live';
+   #+end_src
+
