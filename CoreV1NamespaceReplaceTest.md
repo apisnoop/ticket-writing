@@ -60,7 +60,7 @@ Scenario: confirm that the replace action will apply the changes to a Namespace
 
 # E2E Test
 
-Using a number of existing e2e test practices a new [ginkgo test](https://github.com/ii/kubernetes/blob/create-namespace-replace-test/test/e2e/apimachinery/namespace.go#L286-L304) has been created for 1 Namespace endpoint. The e2e logs for this test are listed below.
+Using a number of existing e2e test practices a new [ginkgo test](https://github.com/ii/kubernetes/blob/create-namespace-replace-test/test/e2e/apimachinery/namespace.go#L359-L377) has been created for 1 Namespace endpoint. The e2e logs for this test are listed below.
 
 ```
 [It] should apply an update to a Namespace
