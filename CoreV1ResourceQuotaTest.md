@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
-- [x] APISnoop org-flow: [CoreV1ResourceQuotaTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ResourceQuotaTest.org)
-- [ ] test approval issue : [#](https://issues.k8s.io/)
-- [ ] test pr : [!](https://pr.k8s.io/)
-- [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [!](https://pr.k8s.io/)
+- [X] APISnoop org-flow: [CoreV1ResourceQuotaTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ResourceQuotaTest.org)
+- [X] test approval issue: [#109682](https://issues.k8s.io/109682)
+- [X] test pr: [#109683](https://pr.k8s.io/109683)
+- [X] two weeks soak start date: [7 July 2022](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.manage.the.lifecycle.of.a.ResourceQuota)
+- [X] two weeks soak end date: 21 July 2022
+- [X] test promotion pr: [#111264](https://pr.k8s.io/111264)
 
 # Identifying an untested feature Using APISnoop
 

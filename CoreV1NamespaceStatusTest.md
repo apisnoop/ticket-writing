@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
-- [x] APISnoop org-flow: [CoreV1NamespaceStatusTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1NamespacedStatusTest.org)
-- [ ] test approval issue : [#](https://issues.k8s.io/)
-- [ ] test pr : [!](https://pr.k8s.io/)
-- [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [!](https://pr.k8s.io/)
+- [X] APISnoop org-flow: [CoreV1NamespaceStatusTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1NamespacedStatusTest.org)
+- [X] test approval issue: [#109762](https://issues.k8s.io/109762)
+- [X] test pr: [#109763](https://pr.k8s.io/109763)
+- [X] two weeks soak start date: [20 July 2022](https://testgrid.k8s.io/sig-api-machinery-gce-gke#gce-serial&width=20&graph-metrics=test-duration-minutes&include-filter-by-regex=should.apply.changes.to.a.namespace.status)
+- [X] two weeks soak end date: 1 August 2022
+- [X] test promotion pr: [#111522](https://pr.k8s.io/111522)
 
 # Identifying an untested feature Using APISnoop
 

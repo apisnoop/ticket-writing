@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
-- [x] APISnoop org-flow: [Batchv1JobLifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/Batchv1JobLifecycleTest.org)
-- [ ] Test approval issue : [#](https://issues.k8s.io/)
-- [ ] Test PR : [!](https://pr.k8s.io/)
-- [ ] Two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
-- [ ] Two weeks soak end date : xxxx-xx-xx
-- [ ] Test promotion PR : [!](https://pr.k8s.io/)
+- [X] APISnoop org-flow: [Batchv1JobLifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/Batchv1JobLifecycleTest.org)
+- [X] Test approval issue: [#108641](https://issues.k8s.io/108641)
+- [X] Test PR: [#108642](https://pr.k8s.io/108642)
+- [X] Two weeks soak start date: [15 April 2022](https://testgrid.k8s.io/https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&include-filter-by-regex=should%20manage%20the%20lifecycle%20of%20a%20job&graph-metrics=test-duration-minutes)
+- [X] Two weeks soak end date: 4 May 2022
+- [X] Test promotion PR: [#109534](https://pr.k8s.io/109534)
 
 # Identifying an untested feature Using APISnoop
 

@@ -7,13 +7,13 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
+* TODO Progress [6/6]                                                :export:
 - [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/Appsv1ControllerRevisionLifecycleTest.org][Appsv1ControllerRevisionLifecycleTest.org]]
-- [ ] Test approval issue: [[https://issues.k8s.io/][#]]
-- [ ] Test PR: [[https://pr.k8s.io/][!]]
-- [ ] Two weeks soak start date: [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] Two weeks soak end date:
-- [ ] Test promotion PR: [[https://pr.k8s.io/][!]]
+- [X] Test approval issue: [[https://issues.k8s.io/110121][#110121]]
+- [X] Test PR: [[https://pr.k8s.io/110122][#110122]]
+- [X] Two weeks soak start date: [[https://testgrid.k8s.io/sig-apps#gce-serial&width=20&include-filter-by-regex=should.manage.the.lifecycle.of.a.ControllerRevision][8 July 2022]]
+- [X] Two weeks soak end date: 22 July 2022
+- [X] Test promotion PR: [[https://pr.k8s.io/111449][#111449]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 
