@@ -7,13 +7,13 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6] :export:
+* TODO Progress [6/6] :export:
 - [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ResourceQuotaTest.org][CoreV1ResourceQuotaTest.org]]
-- [ ] test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] test pr : [[https://pr.k8s.io/][!]]
-- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+- [X] test approval issue: [[https://issues.k8s.io/109682][#109682]]
+- [X] test pr: [[https://pr.k8s.io/109683][#109683]]
+- [X] two weeks soak start date: [[https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.manage.the.lifecycle.of.a.ResourceQuota][7 July 2022]]
+- [X] two weeks soak end date: 21 July 2022
+- [X] test promotion pr: [[https://pr.k8s.io/111264][#111264]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 

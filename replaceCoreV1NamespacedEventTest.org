@@ -6,13 +6,13 @@
 #+EXPORT_SELECT_TAGS: export
 #+PROPERTY: header-args:sql-mode :product postgres
 
-* TODO Progress [1/6]                                                :export:
-- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/replaceCoreV1NamespacedEventTest.org][replaceCoreV1NamespacedEventTest.org]]
-- [ ] test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] test pr : [[https://pr.k8s.io/][!]]
-- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+* TODO Progress [6/6]                                                :export:
+- [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/replaceCoreV1NamespacedEventTest.org][replaceCoreV1NamespacedEventTest.org]]
+- [X] test approval issue: [[https://issues.k8s.io/110797][#110797]]
+- [X] test pr: [[https://pr.k8s.io/110798][#110798]]
+- [X] two weeks soak start date: [[https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.manage.the.lifecycle.of.an.event][1 July 2022]]
+- [X] two weeks soak end date: 15 July 2022
+- [X] test promotion pr: [[https://pr.k8s.io/110797][#110797]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 

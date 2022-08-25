@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [Appsv1ControllerRevisionLifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/Appsv1ControllerRevisionLifecycleTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [!](https://pr.k8s.io/)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [!](https://pr.k8s.io/)
+-   [X] Test approval issue: [#110121](https://issues.k8s.io/110121)
+-   [X] Test PR: [#110122](https://pr.k8s.io/110122)
+-   [X] Two weeks soak start date: [8 July 2022](https://testgrid.k8s.io/sig-apps#gce-serial&width=20&include-filter-by-regex=should.manage.the.lifecycle.of.a.ControllerRevision)
+-   [X] Two weeks soak end date: 22 July 2022
+-   [X] Test promotion PR: [#111449](https://pr.k8s.io/111449)
 
 
 # Identifying an untested feature Using APISnoop
