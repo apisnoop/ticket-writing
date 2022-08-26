@@ -1,8 +1,8 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[3/6]</code>
 
 -   [X] APISnoop org-flow: [CoreV1ResourceQuotaStatusTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ResourceQuotaStatusTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [!](https://pr.k8s.io/)
+-   [X] Test approval issue: [#111956](https://issues.k8s.io/111956)
+-   [X] Test PR: [#111957](https://pr.k8s.io/111957)
 -   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
 -   [ ] Two weeks soak end date:
 -   [ ] Test promotion PR: [!](https://pr.k8s.io/)

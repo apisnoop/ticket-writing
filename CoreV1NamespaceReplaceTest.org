@@ -7,10 +7,10 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
+* TODO Progress [3/6]                                                :export:
 - [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1NamespaceReplaceTest.org][CoreV1NamespaceReplaceTest.org]]
-- [ ] Test approval issue: [[https://issues.k8s.io/][#]]
-- [ ] Test PR: [[https://pr.k8s.io/][!]]
+- [X] Test approval issue: [[https://issues.k8s.io/111847][#111847]]
+- [X] Test PR: [[https://pr.k8s.io/111848][#111848]]
 - [ ] Two weeks soak start date: [[https://testgrid.k8s.io/][testgrid-link]]
 - [ ] Two weeks soak end date:
 - [ ] Test promotion PR: [[https://pr.k8s.io/][!]]

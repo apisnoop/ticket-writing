@@ -1,8 +1,8 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[3/6]</code>
 
 -   [X] APISnoop org-flow: [CoreV1NamespaceReplaceTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1NamespaceReplaceTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [!](https://pr.k8s.io/)
+-   [X] Test approval issue: [#111847](https://issues.k8s.io/111847)
+-   [X] Test PR: [#111848](https://pr.k8s.io/111848)
 -   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
 -   [ ] Two weeks soak end date:
 -   [ ] Test promotion PR: [!](https://pr.k8s.io/)
