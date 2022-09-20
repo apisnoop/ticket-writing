@@ -1,0 +1,135 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Write CoreV1ReplicationControllerScale Test - +2
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* TODO Progress [1/6]                                                :export:
+- [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ReplicationControllerScaleTest.org][ReplicationControllerScaleTest.org]]
+- [ ] Test approval issue: [[https://issues.k8s.io/][#]]
+- [ ] Test PR: [[https://pr.k8s.io/][#]]
+- [ ] Two weeks soak start date: [[https://testgrid.k8s.io/][testgrid-link]]
+- [ ] Two weeks soak end date:
+- [ ] Test promotion PR: [[https://pr.k8s.io/][#]]
+
+* Identifying an untested feature Using APISnoop                     :export:
+
+According to this APIsnoop query, there are still two remaining ReplicationControllerScale endpoints which are untested for conformance.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    select distinct
+      endpoint,
+      test_hit AS "e2e Test",
+      conf_test_hit AS "Conformance Test"
+    from public.audit_event
+    where endpoint ilike '%Scale'
+    and useragent like '%e2e%'
+    and not conf_test_hit
+    order by endpoint
+    limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                       endpoint                      | e2e Test | Conformance Test
+  ---------------------------------------------------+----------+------------------
+   readCoreV1NamespacedReplicationControllerScale    | t        | f
+   replaceCoreV1NamespacedReplicationControllerScale | t        | f
+  (2 rows)
+
+  #+end_SRC
+
+* API Reference and feature documentation                            :export:
+
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/replication-controller-v1/][Kubernetes API / Workload Resources / ReplicationController]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/replicationcontroller.go][client-go - ReplicationController]]
+
+* Test outline                                                       :export:
+
+#+begin_src
+Feature: Test get and update ReplicationController scale api endpoints
+#+end_src
+
+- readCoreV1NamespacedReplicationControllerScale
+
+#+begin_src
+Scenario: confirm the read action for ReplicationControllerScale
+  Given the e2e test has created a ReplicationController
+  When the test reads the ReplicationControllerScale
+  Then the requested action is accepted without any error
+  And one replica is found
+#+end_src
+
+- replaceCoreV1NamespacedReplicationControllerScale
+
+#+begin_src
+Scenario: confirm that the update action will apply the changes to a ReplicationControllerScale
+  Given the e2e test has a ReplicationController after the "read" scenario
+  And a new spec.replicas is set
+  When the test updates the ReplicationControllerScale
+  Then the requested action is accepted without any error
+  And the new replicas are found
+#+end_src
+
+* E2E Test                                                           :export:
+
+Using a number of existing e2e test practices a new [[https://github.com/ii/kubernetes/blob/create-replication-controller-scale-test/test/e2e/apps/rc.go#L395-L420][ginkgo test]] has been created for two ReplicationControllerScale endpoints.
+The e2e logs for this test are listed below.
+
+#+begin_src
+[It] should get and update a ReplicationController scale
+  /home/ii/go/src/k8s.io/kubernetes/test/e2e/apps/rc.go:395
+STEP: Creating ReplicationController "e2e-rc-nzxj7" 09/20/22 10:58:09.572
+Sep 20 10:58:09.587: INFO: Get Replication Controller "e2e-rc-nzxj7" to confirm replicas
+Sep 20 10:58:10.590: INFO: Get Replication Controller "e2e-rc-nzxj7" to confirm replicas
+Sep 20 10:58:10.598: INFO: Found 1 replicas for "e2e-rc-nzxj7" replication controller
+STEP: Getting scale subresource for ReplicationController "e2e-rc-nzxj7" 09/20/22 10:58:10.598
+STEP: Updating a scale subresource 09/20/22 10:58:10.602
+STEP: Verifying replicas where modified for replication controller "e2e-rc-nzxj7" 09/20/22 10:58:10.618
+Sep 20 10:58:10.618: INFO: Get Replication Controller "e2e-rc-nzxj7" to confirm replicas
+Sep 20 10:58:11.636: INFO: Get Replication Controller "e2e-rc-nzxj7" to confirm replicas
+Sep 20 10:58:11.642: INFO: Found 2 replicas for "e2e-rc-nzxj7" replication controller
+#+end_src
+
+* Verifying increase in coverage with APISnoop                       :export:
+
+This query shows which scale endpoints are hit within a short period of running this e2e test
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,51) AS useragent
+from testing.audit_event
+where endpoint ilike '%Scale%'
+and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+and useragent like 'e2e%should%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                     endpoint                      |                      useragent
+---------------------------------------------------+-----------------------------------------------------
+ readCoreV1NamespacedReplicationControllerScale    | should get and update a ReplicationController scale
+ replaceCoreV1NamespacedReplicationControllerScale | should get and update a ReplicationController scale
+(2 rows)
+
+#+end_SRC
+
+* Final notes                                                        :export:
+
+If a test with these calls gets merged, *test coverage will go up by 2 point*
+
+This test is also created with the goal of conformance promotion.
+
+-----
+/sig testing
+
+/sig architecture
+
+/area conformance
