@@ -1,0 +1,163 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Research createCoreV1NamespacedPodBinding
+#+AUTHOR: Stephen Heywood
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* TODO Progress [1/4] :export:
+- [X] Check APISnoop
+- [-] Research api endpoint
+  - [ ] Explore current tests
+  - [X] Explore documentation / SIG Talks
+  - [ ] Explore Kubernetes code base
+  - [X] Get feedback in SIG-Architecture
+  - [ ] Explore api endpoint via =kubectl proxy=
+  - [ ] Review historical Slack messages
+- [ ] Create code snippets that confirm research
+- [ ] Create initial version of e2e test
+
+* Confirm APISnoop lists the endpoint as untested                    :export:
+
+
+According to this APIsnoop query, there are still one Binding endpoint which is untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%PodBinding%'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+               endpoint             |                        path                        |  kind
+  ----------------------------------+----------------------------------------------------+---------
+   createCoreV1NamespacedPodBinding | /api/v1/namespaces/{namespace}/pods/{name}/binding | Binding
+  (1 row)
+
+  #+end_SRC
+
+  - https://apisnoop.cncf.io/1.25.0/stable/core/createCoreV1NamespacedPodBinding?conformance-only=true
+
+* API Reference and feature documentation :export:
+
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/cluster-resources/binding-v1/][Kubernetes API / Cluster Resources / Binding]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/][client-go]]
+
+* Endpoint normally called by the scheduler :export:
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,28) AS useragent
+from testing.audit_event
+where endpoint ilike '%podbinding%'
+and useragent ilike '%kube%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+             endpoint             |          useragent
+----------------------------------+------------------------------
+ createCoreV1NamespacedPodBinding | kubernetes/c285e78/scheduler
+(1 row)
+
+#+end_SRC
+
+* Explore Documentation, SIG Talks & Code :export:
+
+- https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/
+- https://www.youtube.com/watch?v=Wr1TMbdc4O0
+- https://github.com/kubernetes/kubernetes/tree/master/pkg/scheduler
+- https://github.com/kubernetes/kubernetes/tree/master/test/integration/scheduler
+- https://github.com/kubernetes/kubernetes/tree/master/pkg/scheduler/testing
+
+* [[http://bit.ly/sig-architecture][SIG-Architecture Meeting Feedback]] :export:
+** 2022-10-20
+
+- Aaron: Create a pod with another scheduler
+
+** 2022-11-03
+
+- John: Look into using a fake scheduler
+
+* Verify that the endpoint can seen without the scheduler :export:
+
+This query shows curl accessing the endpoint via kubectl proxy.
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,39) AS useragent
+from testing.audit_event
+where useragent like 'curl%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+             endpoint             |  useragent
+----------------------------------+-------------
+ createCoreV1NamespacedPodBinding | curl/7.81.0
+(1 row)
+
+#+end_SRC
+
+* Tracking Research :export:
+** 2022-11-07
+
+- Create org file with initial research to date
+- Review PR to do with binding process
+  - https://pr.k8s.io/112025
+  - https://pr.k8s.io/112103
+- Add more code links for later review
+- Testing endpoint with kubectl proxy & curl
+
+#+begin_src
+kubectl proxy --port=11111
+Starting to serve on 127.0.0.1:11111
+#+end_src
+
+#+begin_src
+curl -X POST http://localhost:11111/api/v1/namespaces/default/pods/nginx/binding
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "the object provided is unrecognized (must be of type Binding): couldn't get version/kind; json parse error: unexpected end of JSON input (\u003cempty\u003e)",
+  "reason": "BadRequest",
+  "code": 400
+}
+#+end_src
+
+- This proves that an e2e test calling this endpoint would be tracked by apisnoop.
+  APISnoop query and results documented in an ealier section.
+
+- Historical "binding" type
+  - https://github.com/kubernetes/kubernetes/blob/3efd107eb235d06feee95f80e461319d1dda7793/pkg/apis/core/types.go#L4658-L4668
+
+#+begin_src
+// Binding ties one object to another; for example, a pod is bound to a node by a scheduler.
+// Deprecated in 1.7, please use the bindings subresource of pods instead.
+type Binding struct {
+	metav1.TypeMeta
+	// ObjectMeta describes the object that is being bound.
+	// +optional
+	metav1.ObjectMeta
+
+	// Target is the object to bind to.
+	Target ObjectReference
+}
+#+end_src
