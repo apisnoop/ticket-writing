@@ -1,0 +1,189 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Research PodAttach endpoints (2)
+#+AUTHOR: Stephen Heywood
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* TODO Progress [1/4] :export:
+- [X] Check APISnoop
+- [ ] Research api endpoint
+  - [ ] Explore current tests
+  - [ ] Explore documentation / SIG Talks
+  - [ ] Explore Kubernetes code base
+  - [ ] Get feedback in SIG-Architecture
+  - [ ] Explore api endpoint via =kubectl proxy=
+  - [ ] Review historical Slack messages
+- [ ] Create code snippets that confirm research
+- [ ] Create initial version of e2e test
+
+* Confirm APISnoop lists the endpoint as untested                    :export:
+
+According to this APIsnoop query, there are two PodAttach endpoints which are untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%PodAttach%'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                 endpoint               |                       path                        |       kind
+  --------------------------------------+---------------------------------------------------+------------------
+   connectCoreV1PostNamespacedPodAttach | /api/v1/namespaces/{namespace}/pods/{name}/attach | PodAttachOptions
+   connectCoreV1GetNamespacedPodAttach  | /api/v1/namespaces/{namespace}/pods/{name}/attach | PodAttachOptions
+  (2 rows)
+
+  #+end_SRC
+
+- https://apisnoop.cncf.io/1.25.0/stable/core/connectCoreV1GetNamespacedPodAttach?conformance-only=true
+- https://apisnoop.cncf.io/1.25.0/stable/core/connectCoreV1PostNamespacedPodAttach?conformance-only=true
+
+* API Reference and feature documentation :export:
+
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/core/v1/][client-go]]
+
+* Explore Documentation, SIG Talks & Code :export:
+* Verify what endpoints are hit by e2e test "should support inline execution and attach" :export:
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,42) AS useragent
+from testing.audit_event
+where useragent like 'e2e%should%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+              endpoint              |                 useragent
+------------------------------------+--------------------------------------------
+ createCoreV1Namespace              | should support inline execution and attach
+ deleteCoreV1Namespace              | should support inline execution and attach
+ deleteCoreV1NamespacedPod          | should support inline execution and attach
+ listCoreV1NamespacedConfigMap      | should support inline execution and attach
+ listCoreV1NamespacedPod            | should support inline execution and attach
+ listCoreV1NamespacedServiceAccount | should support inline execution and attach
+ listCoreV1Node                     | should support inline execution and attach
+ readCoreV1NamespacedPod            | should support inline execution and attach
+(8 rows)
+
+#+end_SRC
+
+* Does APISnoop see any useragent hit a PodAttach endpoint? :export:
+
+#+begin_src 
+cd ~/go/src/k8s.io/kubernetes
+TEST_NAME="should support inline execution and attach"
+go test ./test/e2e/ -v -timeout=0 --report-dir=/tmp/ARTIFACTS -ginkgo.focus="$TEST_NAME" 2>&1 > /tmp/e2e-kb240-01.log
+#+end_src
+
+This query shows =kubectl= hitting one of the endpoints.
+The e2e test calls =framework.NewKubectlCommand= inside of the e2e test.
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,82) AS useragent
+from testing.audit_event
+where endpoint ilike '%PodAttach%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+               endpoint               |                    useragent
+--------------------------------------+--------------------------------------------------
+ connectCoreV1PostNamespacedPodAttach | kubectl/v1.24.2 (linux/amd64) kubernetes/f66044f
+(1 row)
+
+#+end_SRC
+
+* Tracking Research :export:
+** 2022-11-08
+
+- Create org file with initial research to date
+
+*** Locate/review kubectl attach code
+
+- https://github.com/kubernetes/kubernetes/blob/0f3ac85d324aba206a08d8fb22d3d724a97a5ce8/staging/src/k8s.io/kubectl/pkg/cmd/attach/attach.go#L130-L152
+
+#+begin_src
+// DefaultAttachFunc is the default AttachFunc used
+func DefaultAttachFunc(o *AttachOptions, containerToAttach *corev1.Container, raw bool, sizeQueue remotecommand.TerminalSizeQueue) func() error {
+	return func() error {
+		restClient, err := restclient.RESTClientFor(o.Config)
+		if err != nil {
+			return err
+		}
+		req := restClient.Post().
+			Resource("pods").
+			Name(o.Pod.Name).
+			Namespace(o.Pod.Namespace).
+			SubResource("attach")
+		req.VersionedParams(&corev1.PodAttachOptions{
+			Container: containerToAttach.Name,
+			Stdin:     o.Stdin,
+			Stdout:    o.Out != nil,
+			Stderr:    !o.DisableStderr,
+			TTY:       raw,
+		}, scheme.ParameterCodec)
+
+		return o.Attach.Attach("POST", req.URL(), o.Config, o.In, o.Out, o.ErrOut, raw, sizeQueue)
+	}
+}
+#+end_src
+
+*** Locate/review pod/attach calls inside integration test
+
+- https://github.com/kubernetes/kubernetes/blob/master/test/integration/apiserver/admissionwebhook/admission_test.go#L1097-L1120
+
+#+begin_src
+case gvr("", "v1", "pods/attach"):
+	err = c.clientset.CoreV1().RESTClient().Verb(httpMethod).Namespace(pod.GetNamespace()).Resource("pods").Name(pod.GetName()).SubResource("attach").Do(context.TODO()).Error()
+#+end_src
+
+*** Locate/review "kubectl attach" integration test code
+
+- https://github.com/kubernetes/kubernetes/blob/master/staging/src/k8s.io/kubectl/pkg/cmd/attach/attach_test.go#L238-L357
+
+*** Locate/review "kubectl attach" e2e test code
+
+- https://github.com/kubernetes/kubernetes/blob/master/test/e2e/kubectl/kubectl.go#L593
+- https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.support.inline.execution.and.attach
+- Questions around how the "attach" section of test works. Also, it's had a test flake in the last few days
+
+  #+begin_src
+{Nov  6 07:28:12.783: error running /workspace/kubernetes/platforms/linux/amd64/kubectl --server=https://35.233.151.102 --kubeconfig=/workspace/.kube/config --namespace=kubectl-7066 run run-test --image=registry.k8s.io/e2e-test-images/busybox:1.29-2 --restart=OnFailure --pod-running-timeout=2m0s --attach=true --stdin -- sh -c echo -n read: && cat && echo 'stdin closed':
+Command stdout:
+
+stderr:
+If you don't see a command prompt, try pressing enter.
+warning: couldn't attach to pod/run-test, falling back to streaming logs: error dialing backend: dial timeout, backstop
+error: timed out waiting for the condition
+
+error:
+exit status 1 failed test/e2e/framework/kubectl/builder.go:87
+k8s.io/kubernetes/test/e2e/framework/kubectl.KubectlBuilder.ExecOrDie({0xc001f85080?, 0x0?}, {0xc0039d5920, 0xc})
+	test/e2e/framework/kubectl/builder.go:87 +0x1b4
+k8s.io/kubernetes/test/e2e/kubectl.glob..func1.8.8()
+	test/e2e/kubectl/kubectl.go:609 +0x2af}
+  #+end_src
+
+*** Confirm what APISnoop knows about e2e test "should support inline execution and attach"
+
+- The e2e test doesn't directly hit PodAttach (post) endpoint.
+- Need to breakdown the =framework.NewKubectlCommand= function next.
