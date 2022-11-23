@@ -1,0 +1,160 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Research Auth endpoints (2)
+#+AUTHOR: Stephen Heywood
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* TODO Progress [2/4] :export:
+- [X] Check APISnoop
+- [-] Research api endpoint
+  - [X] Explore current tests
+  - [X] Explore documentation / SIG Talks
+  - [X] Explore Kubernetes code base
+  - [X] Get feedback from SIG-Auth
+  - [ ] Explore api endpoint via =kubectl proxy=
+  - [ ] Review historical Slack messages
+- [ ] Create code snippets that confirm current research
+- [X] Create protype e2e test
+- [ ] Update prototype test to follow feedback from sig-auth
+
+* Confirm APISnoop lists the endpoint as untested                    :export:
+
+According to following two APIsnoop queries, there are still two authorization endpoints which are untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%SubjectAccessReview%'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                          endpoint                         |                                      path                                      |           kind
+  ---------------------------------------------------------+--------------------------------------------------------------------------------+--------------------------
+   createAuthorizationV1NamespacedLocalSubjectAccessReview | /apis/authorization.k8s.io/v1/namespaces/{namespace}/localsubjectaccessreviews | LocalSubjectAccessReview
+  (1 row)
+
+  #+end_SRC
+
+- https://apisnoop.cncf.io/1.25.0/stable/authorization/createAuthorizationV1NamespacedLocalSubjectAccessReview?conformance-only=true
+
+  #+begin_src sql-mode :eval never-export :exports both :session none
+  select distinct
+    endpoint,
+    test_hit AS "e2e Test",
+    conf_test_hit AS "Conformance Test"
+  from public.audit_event
+  where endpoint ilike '%SubjectAccessReview'
+  and useragent like '%e2e%'
+  and not conf_test_hit
+  order by endpoint
+  limit 10;
+  #+end_src
+
+  #+RESULTS:
+  #+begin_SRC example
+                   endpoint                 | e2e Test | Conformance Test
+  ------------------------------------------+----------+------------------
+   createAuthorizationV1SubjectAccessReview | t        | f
+  (1 row)
+
+  #+end_SRC
+
+- https://apisnoop.cncf.io/1.25.0/stable/authorization/createAuthorizationV1SubjectAccessReview?conformance-only=true
+
+* API Reference and feature documentation :export:
+
+- [[https://kubernetes.io/docs/reference/kubernetes-api/][Kubernetes API Reference Docs]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/local-subject-access-review-v1/][Kubernetes API / Authorization Resources / LocalSubjectAccessReview]]
+- [[https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/subject-access-review-v1/][Kubernetes API / Authorization Resources / SubjectAccessReview]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/authorization/v1/localsubjectaccessreview.go][client-go - LocalSubjectAccessReview]]
+- [[https://github.com/kubernetes/client-go/blob/master/kubernetes/typed/authorization/v1/subjectaccessreview.go][client-go - SubjectAccessReview]]
+
+* Explore Documentation, SIG Talks & Code :export:
+
+- https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/authorization/types.go
+- https://github.com/kubernetes/kubernetes/blob/master/test/e2e/framework/auth/helpers.go#L52-L79
+
+* [[https://docs.google.com/document/d/1woLGRoONE3EBVx-wTb4pvp4CI7tmLZ6lS26VTbosLKM/edit#heading=h.ucn6b5acqauf][SIG-Auth Meeting Feedback]] :export:
+** 2022-11-09
+
+- David suggested using a serviceaccount identity to make an API call, record whether it was allowed or denied, then make a call to these APIs to check whether the review indicated the same decision
+- Follow up comment from Jordan in [[https://kubernetes.slack.com/archives/C0EN96KUY/p1668025575783529?thread_ts=1667776010.605349&cid=C0EN96KUY][#sig-auth slack]]
+
+  #+begin_quote
+We don't even need to get a service account token to make that request, we could use impersonation instead to perfectly match the username and groups we are passing to the review API calls.
+  #+end_quote
+
+* Confirm that APISnoop can see both endpoints are hit by the e2e test :export:
+
+This query shows the current e2e test accessing the both of the authorization endpoints.
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,43) AS useragent
+from testing.audit_event
+where useragent like 'e2e%should%'
+  and release_date::BIGINT > round(((EXTRACT(EPOCH FROM NOW()))::numeric)*1000,0) - 60000
+  and endpoint ilike '%subject%'
+order by endpoint
+limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                        endpoint                         |                  useragent
+---------------------------------------------------------+---------------------------------------------
+ createAuthorizationV1NamespacedLocalSubjectAccessReview | should support SubjectReview API operations
+ createAuthorizationV1SubjectAccessReview                | should support SubjectReview API operations
+(2 rows)
+
+#+end_SRC
+
+* Tracking Research :export:
+** 2022-11-10
+
+- Attend sig-auth meeting and create some initital notes from the discussion
+
+** 2022-11-11
+
+- Create initial notes while working through apisnoop queries
+- Explore and review a number of functions in the auth test codebase
+- Helper function =WaitForNamedAuthorizationUpdate= provided some initial ideas for a prototype test
+- Create an initial prototype e2e test that hits =SubjectAccessReview= endpoint
+- Confirm that apisnoop tracks the above endpoint
+
+** 2022-11-14
+
+- Update current notes and consider where next to focus on for these endpoints
+
+** 2022-11-21
+
+- Review and research general authorization process in more detail.
+- Blog post: https://www.styra.com/blog/kubernetes-authorization-webhook/ is a great find
+- Explore some of these new learnings on a kind cluster
+
+** 2022-11-22
+
+- Locate and review e2e tests that already hit =SubjectAccessReview= endpoint
+- Find a single kubectl e2e test and some storage tests which don't provide any new insights at the moment
+- [sig-cli] Kubectl client Simple pod should handle in-cluster config
+- https://github.com/kubernetes/kubernetes/blob/master/test/e2e/kubectl/kubectl.go#L684
+
+** 2022-11-23
+
+- Explore authorization integration tests
+- Expand prototype e2e test to cover =LocalSubjectAccessReview= endpoint
+- Confirm that APISnoop tracks the second endpoint
+- Debug test failing on pair box
+- Cleanup prototype e2e test
+- Push prototype test, https://github.com/heyste/kubernetes/blob/kb202/test/e2e/auth/subjectreviews.go
