@@ -1,0 +1,74 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Conformance progress for APIService endpoints
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* Untested APIService endpoints :export:
+
+According to following APIsnoop query, there are still four Apiservice endpoints which are untested.
+
+  #+NAME: untested_stable_core_endpoints
+  #+begin_src sql-mode :eval never-export :exports both :session none
+    SELECT
+      endpoint,
+      path,
+      kind
+      FROM testing.untested_stable_endpoint
+      where eligible is true
+      and endpoint ilike '%APIService%'
+      order by kind, endpoint desc
+      limit 10;
+  #+end_src
+
+  #+RESULTS: untested_stable_core_endpoints
+  #+begin_SRC example
+                    endpoint                   |                           path                            |    kind
+  ---------------------------------------------+-----------------------------------------------------------+------------
+   replaceApiregistrationV1APIServiceStatus    | /apis/apiregistration.k8s.io/v1/apiservices/{name}/status | APIService
+   replaceApiregistrationV1APIService          | /apis/apiregistration.k8s.io/v1/apiservices/{name}        | APIService
+   patchApiregistrationV1APIServiceStatus      | /apis/apiregistration.k8s.io/v1/apiservices/{name}/status | APIService
+   deleteApiregistrationV1CollectionAPIService | /apis/apiregistration.k8s.io/v1/apiservices               | APIService
+  (4 rows)
+
+  #+end_SRC
+
+- https://apisnoop.cncf.io/1.26.0/stable/apiregistration?conformance-only=true
+
+* March 2021: Initial work on the two status endpoints                  :export:
+
+- =patchApiregistrationV1APIServiceStatus=
+- =replaceApiregistrationV1APIServiceStatus=
+
+A [[https://github.com/kubernetes/kubernetes/pull/100508][possible bug]] was found that meant that the sample apiserver was unavailable after patching the status endpoint.
+This caused the e2e test to panic when it tried to delete the test resources.
+Adding a short sleep in the e2e test after the patch was an initial quick "fix" to stop the test failing.
+This was discussed in a [[https://www.youtube.com/watch?v=tKNDCx-DrnA&t=705s][conformance meeting]] with Clayton and a follow up [[https://github.com/kubernetes/kubernetes/issues/102907][issue]] was created.
+
+In January 2023, as part of reviewing this historical work on the APIService endpoints a [[https://github.com/heyste/kubernetes/blob/temp-fix-apiservice-status-test/test/e2e/apimachinery/aggregator.go#L651-L691][temporary work around the above issue was created]].
+A poll was added to the test so it's waiting for the sample apiserver to be ready again before the e2e test cleans up the test resources.
+This fix has been tested on both a cluster with a single controller plane and a HA kind cluster with no flakes (20 runs each).
+
+* June 2021: Next attempt                                               :export:
+
+An [[https://github.com/kubernetes/kubernetes/issues/100486][issue]] and a [[https://github.com/kubernetes/kubernetes/pull/103092][PR]] where created for an e2e test that would cover the following endpoints
+
+- =replaceApiregistrationV1APIServiceStatus=
+- =deleteApiregistrationV1CollectionAPIService=
+
+Jordan gave some [[https://github.com/kubernetes/kubernetes/pull/103092/#discussion_r799563377][helpful feedback]] with a key issue around how RBAC calls are made.
+
+* May 2022: Attempt at testing all endpoints                            :export:
+
+Based on this [[https://github.com/kubernetes/kubernetes/pull/103092#discussion_r799568522][feedback]] from Jordan this [[https://github.com/kubernetes/kubernetes/issues/110236][issue]] covers the next approach taken with links to the relevant PRs.
+It wasn't until the test was promoted that it found to be [[https://github.com/kubernetes/kubernetes/pull/111347][disruptive]] and was [[https://github.com/kubernetes/kubernetes/pull/111675][reverted]].
+
+* Current Questions                                                     :export:
+
+- Would it be feasible to use [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/framework/auth/helpers.go#L150-L167][IsRBACEnabled]] to wrap all the RBAC calls in [[https://github.com/kubernetes/kubernetes/blob/master/test/e2e/apimachinery/aggregator.go][aggregator.go]]?
+- Would we need to recreate the APIService endpoints before testing =deleteCollection= ?
+- Is polling the APIService backend as stated earlier a valid fix for now? or would the current bug need to be addressed before the patch status endpoint can be part of Conformance?
+- Are there any other issues that should be considered when making the next e2e test?
