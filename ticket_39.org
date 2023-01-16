@@ -1,0 +1,583 @@
+#+title: Ticket 39
+
+* Goal
+- start with a resource in the apps endpoint group
+- find a good example of an apps resource that have multiple conformance tests
+- create and an e2e test that cover as many endpoints as possible in one life cycle test
+- use other lifecycle test in the apps endpoint group as reference
+* Check out the apps group
+We can select endpoints by group from our open_api table
+#+begin_src sql-mode
+select * from describe_columns('public','open_api');
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+    column    |                                 description
+--------------+-----------------------------------------------------------------------------
+ release      | kubernetes release of this spec
+ release_date | canonical release date for k8s release
+ endpoint     | kubernetes endpoint, the operation_id in the spec
+ level        | alpha, beta, or stable
+ category     | endpoint category, roughly its group, taken from the first tag in the spec.
+ path         | the http path of the endpoint
+ k8s_group    | k8s group for endpoint
+ k8s_version  | k8s version for endpoint
+ k8s_kind     | k8s kind  for endpoint
+ k8s_action   | endpoint action, roughly related to an http method
+ deprecated   | is endpoint marked as deprecated?
+ description  | description of endpoint
+ spec         | the source for this open api spec, taken from github.
+(13 rows)
+
+#+end_SRC
+
+
+#+begin_src sql-mode
+select endpoint
+  from open_api
+ where k8s_group = 'apps' and release = '1.27.0';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                      endpoint                      | level
+----------------------------------------------------+--------
+ listAppsV1ControllerRevisionForAllNamespaces       | stable
+ listAppsV1DaemonSetForAllNamespaces                | stable
+ listAppsV1DeploymentForAllNamespaces               | stable
+ listAppsV1NamespacedControllerRevision             | stable
+ deleteAppsV1CollectionNamespacedControllerRevision | stable
+ createAppsV1NamespacedControllerRevision           | stable
+ deleteAppsV1NamespacedControllerRevision           | stable
+ readAppsV1NamespacedControllerRevision             | stable
+ patchAppsV1NamespacedControllerRevision            | stable
+ replaceAppsV1NamespacedControllerRevision          | stable
+ createAppsV1NamespacedDaemonSet                    | stable
+ listAppsV1NamespacedDaemonSet                      | stable
+ deleteAppsV1CollectionNamespacedDaemonSet          | stable
+ patchAppsV1NamespacedDaemonSet                     | stable
+ readAppsV1NamespacedDaemonSet                      | stable
+ deleteAppsV1NamespacedDaemonSet                    | stable
+ replaceAppsV1NamespacedDaemonSet                   | stable
+ readAppsV1NamespacedDaemonSetStatus                | stable
+ replaceAppsV1NamespacedDaemonSetStatus             | stable
+ patchAppsV1NamespacedDaemonSetStatus               | stable
+ listAppsV1NamespacedDeployment                     | stable
+ deleteAppsV1CollectionNamespacedDeployment         | stable
+ createAppsV1NamespacedDeployment                   | stable
+ readAppsV1NamespacedDeployment                     | stable
+ replaceAppsV1NamespacedDeployment                  | stable
+ patchAppsV1NamespacedDeployment                    | stable
+ deleteAppsV1NamespacedDeployment                   | stable
+ readAppsV1NamespacedDeploymentStatus               | stable
+ replaceAppsV1NamespacedDeploymentStatus            | stable
+ patchAppsV1NamespacedDeploymentStatus              | stable
+ deleteAppsV1CollectionNamespacedReplicaSet         | stable
+ listAppsV1NamespacedReplicaSet                     | stable
+ createAppsV1NamespacedReplicaSet                   | stable
+ deleteAppsV1NamespacedReplicaSet                   | stable
+ readAppsV1NamespacedReplicaSet                     | stable
+ replaceAppsV1NamespacedReplicaSet                  | stable
+ patchAppsV1NamespacedReplicaSet                    | stable
+ readAppsV1NamespacedReplicaSetStatus               | stable
+ replaceAppsV1NamespacedReplicaSetStatus            | stable
+ patchAppsV1NamespacedReplicaSetStatus              | stable
+ listAppsV1NamespacedStatefulSet                    | stable
+ createAppsV1NamespacedStatefulSet                  | stable
+ deleteAppsV1CollectionNamespacedStatefulSet        | stable
+ deleteAppsV1NamespacedStatefulSet                  | stable
+ patchAppsV1NamespacedStatefulSet                   | stable
+ replaceAppsV1NamespacedStatefulSet                 | stable
+ readAppsV1NamespacedStatefulSet                    | stable
+ replaceAppsV1NamespacedStatefulSetStatus           | stable
+ patchAppsV1NamespacedStatefulSetStatus             | stable
+ readAppsV1NamespacedStatefulSetStatus              | stable
+ listAppsV1ReplicaSetForAllNamespaces               | stable
+ listAppsV1StatefulSetForAllNamespaces              | stable
+ watchAppsV1ControllerRevisionListForAllNamespaces  | stable
+ watchAppsV1DaemonSetListForAllNamespaces           | stable
+ watchAppsV1DeploymentListForAllNamespaces          | stable
+ watchAppsV1NamespacedControllerRevisionList        | stable
+ watchAppsV1NamespacedControllerRevision            | stable
+ watchAppsV1NamespacedDaemonSetList                 | stable
+ watchAppsV1NamespacedDaemonSet                     | stable
+ watchAppsV1NamespacedDeploymentList                | stable
+ watchAppsV1NamespacedDeployment                    | stable
+ watchAppsV1NamespacedReplicaSetList                | stable
+ watchAppsV1NamespacedReplicaSet                    | stable
+ watchAppsV1NamespacedStatefulSetList               | stable
+ watchAppsV1NamespacedStatefulSet                   | stable
+ watchAppsV1ReplicaSetListForAllNamespaces          | stable
+ watchAppsV1StatefulSetListForAllNamespaces         | stable
+(67 rows)
+
+#+end_SRC
+
+We can then use our audit event table to find conformance tests that hit these endpoints.
+
+#+begin_src sql-mode
+select t.testname
+  from audit_event ae
+       join open_api oa using(endpoint)
+       join conformance.test t on (ae.test = t.codename)
+ where oa.k8s_group = 'apps'
+   and oa.release = '1.27.0'
+ group by t.testname limit 10;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                     testname
+-----------------------------------------------------------------------------------
+ Admission webhook, admission control not allowed on webhook configuration objects
+ Admission webhook, deny attach
+ Admission webhook, deny create
+ Admission webhook, deny custom resource create and delete
+ Admission webhook, deny custom resource definition
+ Admission webhook, discovery document
+ Admission webhook, fail closed
+ Admission webhook, honor timeout
+ Admission webhook, list mutating webhooks
+ Admission webhook, list validating webhooks
+(10 rows)
+
+#+end_SRC
+
+then, to make it fancy, let's see how many distinct endpoints each test hits
+#+begin_src sql-mode
+select t.testname , count(distinct endpoint) as endpoints_hit
+  from audit_event ae
+       join open_api oa using(endpoint)
+       join conformance.test t on (ae.test = t.codename)
+ where oa.k8s_group = 'apps'
+   and oa.release = '1.27.0'
+   -- and test like '%lifecycle%'
+ group by t.testname
+ order by endpoints_hit desc;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                     testname                                      | endpoints_hit
+-----------------------------------------------------------------------------------+---------------
+ ControllerRevision, resource lifecycle                                            |            14
+ StatefulSet, status sub-resource                                                  |            10
+ Deployment, completes the lifecycle of a Deployment                               |             9
+ Deployment, status sub-resource                                                   |             8
+ DaemonSet, status sub-resource                                                    |             8
+ ReplicaSet, status sub-resource                                                   |             7
+ Deployment Rollover                                                               |             7
+ Deployment Proportional Scaling                                                   |             6
+ StatefulSet, list, patch and delete a collection of StatefulSets                  |             6
+ DaemonSet-RollingUpdate                                                           |             6
+ ReplicaSet, is created, Replaced and Patched                                      |             6
+ StatefulSet, Burst Scaling                                                        |             5
+ DaemonSet, list and delete a collection of DaemonSets                             |             5
+ DaemonSet-NodeSelection                                                           |             5
+ DaemonSet-Rollback                                                                |             5
+ Deployment Recreate                                                               |             5
+ Deployment RevisionHistoryLimit                                                   |             5
+ Deployment RollingUpdate                                                          |             5
+ Garbage Collector, delete deployment, propagation policy orphan                   |             5
+ StatefulSet, Recreate Failed Pod                                                  |             5
+ StatefulSet resource Replica scaling                                              |             5
+ StatefulSet, Rolling Update                                                       |             5
+ StatefulSet, Rolling Update with Partition                                        |             5
+ StatefulSet, Scaling                                                              |             5
+ Custom Resource Definition Conversion Webhook, conversion custom resource         |             4
+ DaemonSet-Creation                                                                |             4
+ DaemonSet-FailedPodCreation                                                       |             4
+ ReplicaSet, list and delete a collection of ReplicaSets                           |             4
+ Admission webhook, list mutating webhooks                                         |             4
+ Deployment, completes the scaling of a Deployment subresource                     |             4
+ Admission webhook, honor timeout                                                  |             4
+ aggregator-supports-the-sample-apiserver                                          |             4
+ Admission webhook, mutate custom resource with different stored version           |             4
+ Custom Resource Definition Conversion Webhook, convert mixed version list         |             4
+ Admission webhook, admission control not allowed on webhook configuration objects |             4
+ Admission webhook, deny create                                                    |             4
+ Admission webhook, fail closed                                                    |             4
+ Admission webhook, discovery document                                             |             4
+ Garbage Collector, delete deployment,  propagation policy background              |             4
+ Admission webhook, deny attach                                                    |             4
+ Admission webhook, deny custom resource create and delete                         |             4
+ Admission webhook, mutate custom resource                                         |             4
+ Admission webhook, list validating webhooks                                       |             4
+ Admission webhook, deny custom resource definition                                |             4
+ Admission webhook, mutate custom resource with pruning                            |             4
+ Admission webhook, mutation with defaulting                                       |             4
+ Admission webhook, ordered mutation                                               |             4
+ Admission webhook, update mutating webhook                                        |             4
+ Admission webhook, update validating webhook                                      |             4
+ ResourceQuota, object count quota, replicaSet                                     |             2
+ ReplicaSet, completes the scaling of a ReplicaSet subresource                     |             2
+ Pod preemption verification                                                       |             2
+ Pods, delete a collection                                                         |             1
+ PodDisruptionBudget: block an eviction until the PDB is updated to allow it       |             1
+ Replica Set, run basic image                                                      |             1
+ Replica Set, adopt matching pods and release non matching pods                    |             1
+(56 rows)
+
+#+end_SRC
+
+It makes sense that the lifecycle tests are at the top of the list.  These lifecycle tests approximately
+map to the kind of kubernetes object that endpoint is, as you can see when we group conformance eliglbe endpoints by kind.
+
+
+#+begin_src sql-mode
+select k8s_kind, count(distinct endpoint) as kind_total
+  from open_api
+         join conformance.eligible_endpoint ee using(endpoint)
+ where k8s_group = 'apps'
+   and release = '1.27.0'
+ group by k8s_kind;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      k8s_kind      | count
+--------------------+-------
+ ControllerRevision |     8
+ DaemonSet          |    11
+ Deployment         |    11
+ ReplicaSet         |    11
+ StatefulSet        |    11
+(5 rows)
+
+#+end_SRC
+
+And then revisit our view looking at the percentage of an endpoint kind a teset hits.
+
+#+begin_src sql-mode
+with apps_kind as (
+select k8s_kind as kind, count(distinct endpoint) as kind_total
+  from open_api
+         join conformance.eligible_endpoint using(endpoint)
+ where k8s_group = 'apps'
+   and release = '1.27.0'
+ group by kind
+  )
+
+select k8s_kind as kind, testname,
+       round(100.0 * count(distinct endpoint) / kind_total, 2) as percent_hit,
+       repeat(text '■', ceil(100*count(distinct endpoint)/kind_total)::int ) as histogram
+  from audit_event ae
+       join open_api oa using(endpoint)
+       join conformance.test t on (ae.test = t.codename)
+       join apps_kind ak on (ak.kind = oa.k8s_kind)
+ where oa.k8s_group = 'apps'
+   and oa.release = '1.27.0'
+ group by k8s_kind, t.testname, kind_total
+ order by kind, percent_hit desc;
+ ;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+        kind        |                                     testname                                      | percent_hit |                                              histogram
+--------------------+-----------------------------------------------------------------------------------+-------------+------------------------------------------------------------------------------------------------------
+ ControllerRevision | ControllerRevision, resource lifecycle                                            |      100.00 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ControllerRevision | DaemonSet-RollingUpdate                                                           |       12.50 | ■■■■■■■■■■■■
+ DaemonSet          | DaemonSet, status sub-resource                                                    |       72.73 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | ControllerRevision, resource lifecycle                                            |       54.55 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | DaemonSet-Rollback                                                                |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | DaemonSet-RollingUpdate                                                           |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | DaemonSet, list and delete a collection of DaemonSets                             |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | DaemonSet-NodeSelection                                                           |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | DaemonSet-Creation                                                                |       36.36 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ DaemonSet          | DaemonSet-FailedPodCreation                                                       |       36.36 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment, completes the lifecycle of a Deployment                               |       72.73 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment, status sub-resource                                                   |       63.64 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment Rollover                                                               |       36.36 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment Recreate                                                               |       36.36 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment Proportional Scaling                                                   |       36.36 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, ordered mutation                                               |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, update mutating webhook                                        |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, update validating webhook                                      |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | aggregator-supports-the-sample-apiserver                                          |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Custom Resource Definition Conversion Webhook, conversion custom resource         |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Custom Resource Definition Conversion Webhook, convert mixed version list         |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment, completes the scaling of a Deployment subresource                     |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment RevisionHistoryLimit                                                   |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Deployment RollingUpdate                                                          |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Garbage Collector, delete deployment, propagation policy orphan                   |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Garbage Collector, delete deployment,  propagation policy background              |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, admission control not allowed on webhook configuration objects |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, deny attach                                                    |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, deny create                                                    |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, deny custom resource create and delete                         |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, deny custom resource definition                                |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, discovery document                                             |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, fail closed                                                    |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, honor timeout                                                  |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, list mutating webhooks                                         |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, list validating webhooks                                       |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, mutate custom resource                                         |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, mutate custom resource with different stored version           |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, mutate custom resource with pruning                            |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ Deployment         | Admission webhook, mutation with defaulting                                       |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | ReplicaSet, status sub-resource                                                   |       63.64 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | ReplicaSet, is created, Replaced and Patched                                      |       54.55 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | ReplicaSet, list and delete a collection of ReplicaSets                           |       36.36 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Deployment Rollover                                                               |       27.27 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Deployment RollingUpdate                                                          |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Deployment Proportional Scaling                                                   |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Deployment RevisionHistoryLimit                                                   |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Garbage Collector, delete deployment, propagation policy orphan                   |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Pod preemption verification                                                       |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | ReplicaSet, completes the scaling of a ReplicaSet subresource                     |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | ResourceQuota, object count quota, replicaSet                                     |       18.18 | ■■■■■■■■■■■■■■■■■■
+ ReplicaSet         | Admission webhook, mutate custom resource with different stored version           |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, mutate custom resource with pruning                            |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, mutation with defaulting                                       |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, ordered mutation                                               |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, update mutating webhook                                        |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, update validating webhook                                      |        9.09 | ■■■■■■■■■
+ ReplicaSet         | aggregator-supports-the-sample-apiserver                                          |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Custom Resource Definition Conversion Webhook, conversion custom resource         |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Custom Resource Definition Conversion Webhook, convert mixed version list         |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Deployment, completes the lifecycle of a Deployment                               |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Deployment, completes the scaling of a Deployment subresource                     |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Replica Set, run basic image                                                      |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, admission control not allowed on webhook configuration objects |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, discovery document                                             |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, fail closed                                                    |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, honor timeout                                                  |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, list mutating webhooks                                         |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, list validating webhooks                                       |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, mutate custom resource                                         |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Deployment Recreate                                                               |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, deny custom resource definition                                |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, deny custom resource create and delete                         |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Deployment, status sub-resource                                                   |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Garbage Collector, delete deployment,  propagation policy background              |        9.09 | ■■■■■■■■■
+ ReplicaSet         | PodDisruptionBudget: block an eviction until the PDB is updated to allow it       |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Pods, delete a collection                                                         |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Replica Set, adopt matching pods and release non matching pods                    |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, deny create                                                    |        9.09 | ■■■■■■■■■
+ ReplicaSet         | Admission webhook, deny attach                                                    |        9.09 | ■■■■■■■■■
+ StatefulSet        | StatefulSet, status sub-resource                                                  |       90.91 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet, list, patch and delete a collection of StatefulSets                  |       54.55 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet, Rolling Update with Partition                                        |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet, Burst Scaling                                                        |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet, Scaling                                                              |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet, Recreate Failed Pod                                                  |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet, Rolling Update                                                       |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+ StatefulSet        | StatefulSet resource Replica scaling                                              |       45.45 | ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+(88 rows)
+
+#+end_SRC
+
+This makes it a bit easier to see, that for each kind there is a #1 test that
+hits nearly all or all of the endpoints of that kind, and then a number of tests
+that only hit a few.
+
+
+From this list, we can grab the best tests, the ones that hit the highest
+percentage of a kind. We don't want to rank by # of total tests hit, as that
+could elevate tests that are doing scattershot meethods hitting naything they
+can. Grouping by kind will likely show us the best focused, and most
+comprehensive tests.
+
+#+begin_src sql-mode
+with apps_kind as (
+  select k8s_kind as kind, count(distinct endpoint) as kind_total
+    from open_api
+         join conformance.eligible_endpoint using(endpoint)
+   where k8s_group = 'apps'
+     and release = '1.27.0'
+   group by kind
+)
+
+select distinct kind, first_value(codename)
+         over(
+           partition by k8s_kind
+           order by (round(100.0 * count(distinct endpoint) / kind_total, 2)) desc
+         ) as best_test
+  from audit_event ae
+       join open_api oa using(endpoint)
+       join conformance.test t on (ae.test = t.codename)
+       join apps_kind ak on (ak.kind = oa.k8s_kind)
+ where oa.k8s_group = 'apps'
+   and oa.release = '1.27.0'
+ group by ak.kind, codename, k8s_kind, ak.kind_total;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+        kind        |                                                              best_test
+--------------------+--------------------------------------------------------------------------------------------------------------------------------------
+ ControllerRevision | [sig-apps] ControllerRevision [Serial] should manage the lifecycle of a ControllerRevision [Conformance]
+ DaemonSet          | [sig-apps] Daemon set [Serial] should verify changes to a daemon set status [Conformance]
+ Deployment         | [sig-apps] Deployment should run the lifecycle of a Deployment [Conformance]
+ ReplicaSet         | [sig-apps] ReplicaSet should validate Replicaset Status endpoints [Conformance]
+ StatefulSet        | [sig-apps] StatefulSet Basic StatefulSet functionality [StatefulSetBasic] should validate Statefulset Status endpoints [Conformance]
+(5 rows)
+
+#+end_SRC
+
+
+Now we want the tests that only hit a single endpoint.  These are likely ones that can be retired or refactored.
+
+#+begin_src sql-mode
+with apps_kind as (
+  select k8s_kind as kind, count(distinct endpoint) as kind_total
+    from open_api
+         join conformance.eligible_endpoint using(endpoint)
+   where k8s_group = 'apps'
+     and release = '1.27.0'
+   group by kind
+), tests_and_hits as (
+  select k8s_kind as kind, testname,
+         count(distinct endpoint) as endpoints_hit
+    from audit_event ae
+         join open_api oa using(endpoint)
+         join conformance.test t on (ae.test = t.codename)
+         join apps_kind ak on (ak.kind = oa.k8s_kind)
+   where oa.k8s_group = 'apps'
+     and oa.release = '1.27.0'
+   group by k8s_kind, t.testname, kind_total
+)
+select kind, testname from tests_and_hits where endpoints_hit = 1;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+        kind        |                                     testname
+--------------------+-----------------------------------------------------------------------------------
+ ControllerRevision | DaemonSet-RollingUpdate
+ ReplicaSet         | Admission webhook, admission control not allowed on webhook configuration objects
+ ReplicaSet         | Admission webhook, deny attach
+ ReplicaSet         | Admission webhook, deny create
+ ReplicaSet         | Admission webhook, deny custom resource create and delete
+ ReplicaSet         | Admission webhook, deny custom resource definition
+ ReplicaSet         | Admission webhook, discovery document
+ ReplicaSet         | Admission webhook, fail closed
+ ReplicaSet         | Admission webhook, honor timeout
+ ReplicaSet         | Admission webhook, list mutating webhooks
+ ReplicaSet         | Admission webhook, list validating webhooks
+ ReplicaSet         | Admission webhook, mutate custom resource
+ ReplicaSet         | Admission webhook, mutate custom resource with different stored version
+ ReplicaSet         | Admission webhook, mutate custom resource with pruning
+ ReplicaSet         | Admission webhook, mutation with defaulting
+ ReplicaSet         | Admission webhook, ordered mutation
+ ReplicaSet         | Admission webhook, update mutating webhook
+ ReplicaSet         | Admission webhook, update validating webhook
+ ReplicaSet         | aggregator-supports-the-sample-apiserver
+ ReplicaSet         | Custom Resource Definition Conversion Webhook, conversion custom resource
+ ReplicaSet         | Custom Resource Definition Conversion Webhook, convert mixed version list
+ ReplicaSet         | Deployment, completes the lifecycle of a Deployment
+ ReplicaSet         | Deployment, completes the scaling of a Deployment subresource
+ ReplicaSet         | Deployment Recreate
+ ReplicaSet         | Deployment, status sub-resource
+ ReplicaSet         | Garbage Collector, delete deployment,  propagation policy background
+ ReplicaSet         | PodDisruptionBudget: block an eviction until the PDB is updated to allow it
+ ReplicaSet         | Pods, delete a collection
+ ReplicaSet         | Replica Set, adopt matching pods and release non matching pods
+ ReplicaSet         | Replica Set, run basic image
+(30 rows)
+
+#+end_SRC
+
+replica set has the most. I wonder if there's something about that kind that
+makes it hard to write a test that hits all? One thing I can do is comapre the
+endpoints hit among our best and our worst endpoints, and find the tests that
+only hit a single endpoint that is already hit by that kind's best test.
+
+#+begin_src sql-mode
+with apps_kind as (
+  select k8s_kind as kind, count(distinct endpoint) as kind_total
+    from open_api
+         join conformance.eligible_endpoint using(endpoint)
+   where k8s_group = 'apps'
+     and release = '1.27.0'
+   group by kind
+),
+
+  best_test as (
+    select distinct kind, first_value(codename)
+                      over(
+                        partition by k8s_kind
+                        order by (round(100.0 * count(distinct endpoint) / kind_total, 2)) desc
+                      ) as test
+      from audit_event ae
+           join open_api oa using(endpoint)
+           join conformance.test t on (ae.test = t.codename)
+           join apps_kind ak on (ak.kind = oa.k8s_kind)
+     where oa.k8s_group = 'apps'
+       and oa.release = '1.27.0'
+     group by ak.kind, codename, k8s_kind, ak.kind_total
+  ),
+
+  endpoints_of_best as (
+    select distinct endpoint
+      from audit_event
+           join best_test on (audit_event.test = best_test.test)
+  ),
+
+  tests_and_hits as (
+    select k8s_kind as kind, codename as test,
+           count(distinct endpoint) as endpoints_hit
+      from audit_event ae
+           join open_api oa using(endpoint)
+           join conformance.test t on (ae.test = t.codename)
+           join apps_kind ak on (ak.kind = oa.k8s_kind)
+     where oa.k8s_group = 'apps'
+       and oa.release = '1.27.0'
+     group by k8s_kind, t.codename, kind_total
+  ),
+
+  worst_tests as (
+    select kind, test from tests_and_hits where endpoints_hit = 1
+  )
+
+select t.testname, t.file
+  from audit_event
+       join worst_tests using(test)
+       join conformance.test t on (worst_tests.test = t.codename)
+ where exists(
+   select 1 from endpoints_of_best best where best.endpoint = audit_event.endpoint)
+ group by testname, file;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                     testname                                      |                      file
+-----------------------------------------------------------------------------------+-------------------------------------------------
+ Admission webhook, admission control not allowed on webhook configuration objects | test/e2e/apimachinery/webhook.go
+ Admission webhook, deny attach                                                    | test/e2e/apimachinery/webhook.go
+ Admission webhook, deny create                                                    | test/e2e/apimachinery/webhook.go
+ Admission webhook, deny custom resource create and delete                         | test/e2e/apimachinery/webhook.go
+ Admission webhook, deny custom resource definition                                | test/e2e/apimachinery/webhook.go
+ Admission webhook, discovery document                                             | test/e2e/apimachinery/webhook.go
+ Admission webhook, fail closed                                                    | test/e2e/apimachinery/webhook.go
+ Admission webhook, honor timeout                                                  | test/e2e/apimachinery/webhook.go
+ Admission webhook, list mutating webhooks                                         | test/e2e/apimachinery/webhook.go
+ Admission webhook, list validating webhooks                                       | test/e2e/apimachinery/webhook.go
+ Admission webhook, mutate custom resource                                         | test/e2e/apimachinery/webhook.go
+ Admission webhook, mutate custom resource with different stored version           | test/e2e/apimachinery/webhook.go
+ Admission webhook, mutate custom resource with pruning                            | test/e2e/apimachinery/webhook.go
+ Admission webhook, mutation with defaulting                                       | test/e2e/apimachinery/webhook.go
+ Admission webhook, ordered mutation                                               | test/e2e/apimachinery/webhook.go
+ Admission webhook, update mutating webhook                                        | test/e2e/apimachinery/webhook.go
+ Admission webhook, update validating webhook                                      | test/e2e/apimachinery/webhook.go
+ aggregator-supports-the-sample-apiserver                                          | test/e2e/apimachinery/aggregator.go
+ Custom Resource Definition Conversion Webhook, conversion custom resource         | test/e2e/apimachinery/crd_conversion_webhook.go
+ Custom Resource Definition Conversion Webhook, convert mixed version list         | test/e2e/apimachinery/crd_conversion_webhook.go
+ DaemonSet-RollingUpdate                                                           | test/e2e/apps/daemon_set.go
+ Deployment, completes the lifecycle of a Deployment                               | test/e2e/apps/deployment.go
+ Deployment, completes the scaling of a Deployment subresource                     | test/e2e/apps/deployment.go
+ Deployment Recreate                                                               | test/e2e/apps/deployment.go
+ Deployment, status sub-resource                                                   | test/e2e/apps/deployment.go
+ Garbage Collector, delete deployment,  propagation policy background              | test/e2e/apimachinery/garbage_collector.go
+ PodDisruptionBudget: block an eviction until the PDB is updated to allow it       | test/e2e/apps/disruption.go
+ Pods, delete a collection                                                         | test/e2e/common/node/pods.go
+ Replica Set, adopt matching pods and release non matching pods                    | test/e2e/apps/replica_set.go
+ Replica Set, run basic image                                                      | test/e2e/apps/replica_set.go
+(30 rows)
+
+#+end_SRC
+
+These are the same tests as the previous query, but we now have their shortened name and the file in which they are written.
