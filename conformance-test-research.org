@@ -1,0 +1,230 @@
+#+title: Conformance Test Research
+
+What is the state fo our conformance tests?
+
+* Ineligible endpoints
+One upcoming change will be a number of ineligible endpoints are now, in fact, eligible.  Are any of these already covered by tests?  What will be the drop of coverage if we include the ineligible tests?
+
+#+NAME: How many ineligible endpoints?
+#+begin_src sql-mode
+select count(1) from conformance.ineligible_endpoint;
+#+end_src
+
+#+RESULTS: How many ineligible endpoints?
+#+begin_SRC example
+ count
+-------
+   151
+(1 row)
+
+#+end_SRC
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+   151
+(1 row)
+
+#+end_SRC
+
+Of these 151, how many are being hit in our current test runs? 80
+
+#+begin_src sql-mode
+select count(distinct endpoint)
+  from audit_event
+       join conformance.ineligible_endpoint using(endpoint);
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    80
+(1 row)
+#+end_SRC
+
+Of these, how many are tested by a conformance test? 18
+
+#+begin_src sql-mode
+select count(distinct endpoint)
+  from audit_event
+       join conformance.ineligible_endpoint using(endpoint)
+ where conf_test_hit is true;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    18
+(1 row)
+
+#+end_SRC
+
+* ineligible endpoints hit by conformance tests
+
+Let's dig deeper into those 18. What tests are they hit by?
+
+#+begin_src sql-mode
+select endpoint , count(distinct test) as tests
+  from audit_event
+       join conformance.ineligible_endpoint using(endpoint)
+ where conf_test_hit is true
+ group by endpoint
+          order by tests;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                    endpoint                    | tests
+------------------------------------------------+-------
+ readStorageV1CSIDriver                         |     1
+ deleteRbacAuthorizationV1ClusterRole           |     1
+ deleteStorageV1CSIDriver                       |     1
+ getFlowcontrolApiserverAPIGroup                |     1
+ getRbacAuthorizationAPIGroup                   |     1
+ getRbacAuthorizationV1APIResources             |     1
+ listStorageV1CSIDriver                         |     1
+ patchCoreV1NamespacedPodEphemeralcontainers    |     1
+ createRbacAuthorizationV1ClusterRole           |     1
+ createStorageV1CSIDriver                       |     1
+ getStorageV1APIResources                       |     2
+ deleteRbacAuthorizationV1ClusterRoleBinding    |     2
+ getStorageAPIGroup                             |     2
+ createRbacAuthorizationV1ClusterRoleBinding    |     2
+ listCoreV1NamespacedPersistentVolumeClaim      |     8
+ listCoreV1PersistentVolume                     |     8
+ deleteRbacAuthorizationV1NamespacedRoleBinding |    20
+ createRbacAuthorizationV1NamespacedRoleBinding |    20
+(18 rows)
+
+#+end_SRC
+
+Most are only hit by 1 or 2 conformance tests, with some outliers at the bottom. The question is whether it seems like these endpoints are being hit intentionally.
+
+One way we could look at it is to see the group and kind the endpoints are a part of, and the tests that hit them. If the test is part of that group and kind, it's likely that the endpoint was within the scope of the test. Even better if the test's description matches in any way this endpoint's purpose.
+
+
+I will reduce my look to just the tests hit by 1 or 2 endpoints and then expand.
+
+#+begin_src sql-mode
+with hit_endpoints as (
+  select endpoint , count(distinct test) as tests
+    from audit_event
+         join conformance.ineligible_endpoint using(endpoint)
+   where conf_test_hit is true
+   group by endpoint
+   order by tests
+)
+
+select oa.k8s_kind,
+       endpoint,
+       test.codename
+  from hit_endpoints
+       join audit_event ae using(endpoint)
+       join open_api oa using(endpoint)
+       join conformance.test test on (ae.test = test.codename)
+ where tests < 3
+ group by k8s_kind, endpoint, codename
+ order by k8s_kind, endpoint;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      k8s_kind       |                  endpoint                   |                                                            codename
+---------------------+---------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------
+ ClusterRole         | createRbacAuthorizationV1ClusterRole        | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRole         | deleteRbacAuthorizationV1ClusterRole        | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRoleBinding  | createRbacAuthorizationV1ClusterRoleBinding | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRoleBinding  | createRbacAuthorizationV1ClusterRoleBinding | [sig-auth] ServiceAccounts ServiceAccountIssuerDiscovery should support OIDC discovery of service account issuer [Conformance]
+ ClusterRoleBinding  | deleteRbacAuthorizationV1ClusterRoleBinding | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRoleBinding  | deleteRbacAuthorizationV1ClusterRoleBinding | [sig-auth] ServiceAccounts ServiceAccountIssuerDiscovery should support OIDC discovery of service account issuer [Conformance]
+ CSIDriver           | createStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | deleteStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | listStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | readStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ EphemeralContainers | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+ Pod                 | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+                     | getFlowcontrolApiserverAPIGroup             | [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+                     | getRbacAuthorizationAPIGroup                | [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+                     | getRbacAuthorizationV1APIResources          | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+                     | getStorageAPIGroup                          | [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+                     | getStorageAPIGroup                          | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+                     | getStorageV1APIResources                    | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+                     | getStorageV1APIResources                    | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+(19 rows)
+
+#+end_SRC
+
+Of these, from my eyes, the storage endpoints and the ephemeral container
+endpoints are being hit by a kind/domain specific test.
+
+We can remove the discovery test, since something
+like ~getFlowControl...~ being hit by a discovery test just means that the test
+wanted to know if it was there and it said yes, it...discovered it. It's not
+testing the functionality beyond that.
+
+I am also iffy on the aggregator test. If we look at it specifically, it is
+hitting over 50 endpoints. I can't say that this test is targeting any of these
+above endpoints specific functionality.
+
+#+begin_src sql-mode
+select count(distinct endpoint)
+  from audit_event
+ where test = '[sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    53
+(1 row)
+
+#+end_SRC
+
+So if we remove the aggregator and discovery tests, what do we have?
+
+#+begin_src sql-mode
+with hit_endpoints as (
+  select endpoint , count(distinct test) as tests
+    from audit_event
+         join conformance.ineligible_endpoint using(endpoint)
+   where conf_test_hit is true
+   group by endpoint
+   order by tests
+)
+
+select oa.k8s_kind,
+       endpoint,
+       test.codename
+  from hit_endpoints
+       join audit_event ae using(endpoint)
+       join open_api oa using(endpoint)
+       join conformance.test test on (ae.test = test.codename)
+ where tests < 3
+       and codename not like '%Aggregator Should be able%'
+       and codename not like '%Discovery%'
+ group by k8s_kind, endpoint, codename
+ order by k8s_kind, endpoint;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      k8s_kind       |                  endpoint                   |                                                       codename
+---------------------+---------------------------------------------+----------------------------------------------------------------------------------------------------------------------
+ CSIDriver           | createStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | deleteStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | listStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | readStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ EphemeralContainers | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+ Pod                 | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+                     | getStorageAPIGroup                          | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+                     | getStorageV1APIResources                    | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+(8 rows)
+
+#+end_SRC
+
+There are 7 endpoints hit by tests that seem to be targeting the functionality of the endpoint.
