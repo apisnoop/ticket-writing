@@ -1,9 +1,11 @@
 #+title: Conformance Test Research
 
-What is the state fo our conformance tests?
+What is the state of our conformance tests?
 
 * Ineligible endpoints
-One upcoming change will be a number of ineligible endpoints are now, in fact, eligible.  Are any of these already covered by tests?  What will be the drop of coverage if we include the ineligible tests?
+One upcoming change will be a number of ineligible endpoints are now, in fact,
+eligible. Are any of these already covered by tests? What will be the drop of
+coverage if we include the ineligible tests?
 
 #+NAME: How many ineligible endpoints?
 #+begin_src sql-mode
@@ -19,16 +21,56 @@ select count(1) from conformance.ineligible_endpoint;
 
 #+end_SRC
 
+Some of these won't ever be made eligible.  If we look at the reasons for ineligiblity:
+
+#+begin_src sql-mode
+select distinct reason from conformance.ineligible_endpoint;
+#+end_src
+
 #+RESULTS:
 #+begin_SRC example
- count
--------
-   151
-(1 row)
+                                            reason
+-----------------------------------------------------------------------------------------------
+ Not eligible for conformance yet
+ uses kubelet api
+ Endpoint likely to be deprecated
+ Endpoint was deprecated in 1.7
+ endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+ vendor specific feature
+ Unable to be tested, and likely soon deprecated
+ pending deprecation
+ Kubernetes distribution would reasonably not allow this action via the API
+ still an alpha feature plan for GA 1.31
+ depends on alpha feature
+ optional feature
+(12 rows)
+#+end_SRC
+
+The deprecated endpoints won't likely be made eligible.  Similarly, the vendor-gated and optional ones.
+The endpoints with the highest possiblity are those whose reasons are "set to be made eligible in X".  So let's
+filter the list to these:
+
+#+begin_src sql-mode
+select endpoint,reason
+  from conformance.ineligible_endpoint
+ where reason like '%conformance test in 1.25'
+    or reason like '%feature plan for GA 1.31';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                     endpoint                     |                                            reason
+--------------------------------------------------+-----------------------------------------------------------------------------------------------
+ getResourceAPIGroup                              | still an alpha feature plan for GA 1.31
+ readNetworkingV1NamespacedNetworkPolicyStatus    | endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+ patchNetworkingV1NamespacedNetworkPolicyStatus   | endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+ replaceNetworkingV1NamespacedNetworkPolicyStatus | endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+(4 rows)
 
 #+end_SRC
 
-Of these 151, how many are being hit in our current test runs? 80
+* Overall coverage
+Of these 151 (knowing some may be always ineligible), how many are being hit in our current test runs? 80
 
 #+begin_src sql-mode
 select count(distinct endpoint)
@@ -227,4 +269,142 @@ select oa.k8s_kind,
 
 #+end_SRC
 
-There are 7 endpoints hit by tests that seem to be targeting the functionality of the endpoint.
+And of these endpoints, what are their reasons for ineligiblity?
+
+#+begin_src sql-mode
+with hit_endpoints as (
+  select endpoint , reason, count(distinct test) as tests
+    from audit_event
+         join conformance.ineligible_endpoint using(endpoint)
+   where conf_test_hit is true
+   group by endpoint,reason
+   order by tests
+)
+
+select endpoint, reason
+  from hit_endpoints
+       join audit_event ae using(endpoint)
+       join open_api oa using(endpoint)
+       join conformance.test test on (ae.test = test.codename)
+ where tests < 3
+       and codename not like '%Aggregator Should be able%'
+       and codename not like '%Discovery%'
+ group by endpoint, reason
+ order by endpoint;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint                   |              reason
+---------------------------------------------+----------------------------------
+ createStorageV1CSIDriver                    | vendor specific feature
+ deleteStorageV1CSIDriver                    | vendor specific feature
+ getStorageAPIGroup                          | vendor specific feature
+ getStorageV1APIResources                    | vendor specific feature
+ listStorageV1CSIDriver                      | vendor specific feature
+ patchCoreV1NamespacedPodEphemeralcontainers | Not eligible for conformance yet
+ readStorageV1CSIDriver                      | vendor specific feature
+(7 rows)
+
+#+end_SRC
+
+So the only one that isn't vendor-specific has an optimistic, open-ended reason. If it is decided for it to be conformant, then it's likely already tested.
+
+* Cleaning up the ineligible endpoints
+What is the breakdown of ineligible reasons?
+
+#+begin_src sql-mode
+select reason, count(*)
+  from conformance.ineligible_endpoint
+ group by reason
+ order by count desc;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                            reason                                             | count
+-----------------------------------------------------------------------------------------------+-------
+ optional feature                                                                              |    65
+ vendor specific feature                                                                       |    54
+ Unable to be tested, and likely soon deprecated                                               |    14
+ Not eligible for conformance yet                                                              |     4
+ endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25 |     3
+ Kubernetes distribution would reasonably not allow this action via the API                    |     3
+ uses kubelet api                                                                              |     2
+ pending deprecation                                                                           |     2
+ Endpoint likely to be deprecated                                                              |     1
+ still an alpha feature plan for GA 1.31                                                       |     1
+ depends on alpha feature                                                                      |     1
+ Endpoint was deprecated in 1.7                                                                |     1
+(12 rows)
+
+#+end_SRC
+
+The majority are optional or vendor-specific. Only a small amount have to do
+with deprecation.
+
+#+begin_src sql-mode
+select count(*)
+  from conformance.ineligible_endpoint
+ where reason ilike '%deprecat%';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    18
+(1 row)
+#+end_SRC
+
+Of these deprecated endpoints, how many are still in the open api spec? I assume
+all, but if any are missing then it would make sense to remove them entirely.
+
+#+begin_src sql-mode
+with ineligible as(
+  select endpoint
+    from conformance.ineligible_endpoint
+   where reason ilike '%deprecat%'
+)
+select endpoint
+  from ineligible
+except
+select endpoint
+  from open_api
+ where release = '1.27.0';
+
+;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ endpoint
+----------
+(0 rows)
+
+#+end_SRC
+
+
+So all the deprecated endpoints are still in our API spec.
+
+* Next steps
+It is still a unclear to me the effect to coverage if any of these endpints are
+made eligible. For one, I am uncertain which of them are actually going to be
+made eligible. There are only 4 whose reason is an upcoming eligibility and
+three of them may no longer count toward that.
+
+Of the currently ineligible that are hit by conformance tests, the majority are
+for vendor-specific features and likely wouldn't qualify anyway. The remaining
+has a reason of 'not eligible for conformance yet' and so it is positive that,
+if it is later made eligible, it is already covered by a fairly well targeted
+test.
+
+It would be good to revisit the ineligible endpoints list and standardize the
+reasons for ineligiblity. We can create consistent wording for deprecation,
+making it easier to filter these out in later queries. It woudl also be good to
+give more context to the 'optional feature' or 'not eligible yet' reasons. Will
+these endpoints always be optional and thus never conformant? What are the
+requirements for the 'not eligible yet' endpoints before they can be considered
+eligible? It might be good to have a field for "always ineligible" that will let
+us filter out those endpoints from our conversations entirely.
