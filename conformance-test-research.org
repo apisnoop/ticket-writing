@@ -1,0 +1,410 @@
+#+title: Conformance Test Research
+
+What is the state of our conformance tests?
+
+* Ineligible endpoints
+One upcoming change will be a number of ineligible endpoints are now, in fact,
+eligible. Are any of these already covered by tests? What will be the drop of
+coverage if we include the ineligible tests?
+
+#+NAME: How many ineligible endpoints?
+#+begin_src sql-mode
+select count(1) from conformance.ineligible_endpoint;
+#+end_src
+
+#+RESULTS: How many ineligible endpoints?
+#+begin_SRC example
+ count
+-------
+   151
+(1 row)
+
+#+end_SRC
+
+Some of these won't ever be made eligible.  If we look at the reasons for ineligiblity:
+
+#+begin_src sql-mode
+select distinct reason from conformance.ineligible_endpoint;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                            reason
+-----------------------------------------------------------------------------------------------
+ Not eligible for conformance yet
+ uses kubelet api
+ Endpoint likely to be deprecated
+ Endpoint was deprecated in 1.7
+ endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+ vendor specific feature
+ Unable to be tested, and likely soon deprecated
+ pending deprecation
+ Kubernetes distribution would reasonably not allow this action via the API
+ still an alpha feature plan for GA 1.31
+ depends on alpha feature
+ optional feature
+(12 rows)
+#+end_SRC
+
+The deprecated endpoints won't likely be made eligible.  Similarly, the vendor-gated and optional ones.
+The endpoints with the highest possiblity are those whose reasons are "set to be made eligible in X".  So let's
+filter the list to these:
+
+#+begin_src sql-mode
+select endpoint,reason
+  from conformance.ineligible_endpoint
+ where reason like '%conformance test in 1.25'
+    or reason like '%feature plan for GA 1.31';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                     endpoint                     |                                            reason
+--------------------------------------------------+-----------------------------------------------------------------------------------------------
+ getResourceAPIGroup                              | still an alpha feature plan for GA 1.31
+ readNetworkingV1NamespacedNetworkPolicyStatus    | endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+ patchNetworkingV1NamespacedNetworkPolicyStatus   | endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+ replaceNetworkingV1NamespacedNetworkPolicyStatus | endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25
+(4 rows)
+
+#+end_SRC
+
+* Overall coverage
+Of these 151 (knowing some may be always ineligible), how many are being hit in our current test runs? 80
+
+#+begin_src sql-mode
+select count(distinct endpoint)
+  from audit_event
+       join conformance.ineligible_endpoint using(endpoint);
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    80
+(1 row)
+#+end_SRC
+
+Of these, how many are tested by a conformance test? 18
+
+#+begin_src sql-mode
+select count(distinct endpoint)
+  from audit_event
+       join conformance.ineligible_endpoint using(endpoint)
+ where conf_test_hit is true;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    18
+(1 row)
+
+#+end_SRC
+
+* ineligible endpoints hit by conformance tests
+
+Let's dig deeper into those 18. What tests are they hit by?
+
+#+begin_src sql-mode
+select endpoint , count(distinct test) as tests
+  from audit_event
+       join conformance.ineligible_endpoint using(endpoint)
+ where conf_test_hit is true
+ group by endpoint
+          order by tests;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                    endpoint                    | tests
+------------------------------------------------+-------
+ readStorageV1CSIDriver                         |     1
+ deleteRbacAuthorizationV1ClusterRole           |     1
+ deleteStorageV1CSIDriver                       |     1
+ getFlowcontrolApiserverAPIGroup                |     1
+ getRbacAuthorizationAPIGroup                   |     1
+ getRbacAuthorizationV1APIResources             |     1
+ listStorageV1CSIDriver                         |     1
+ patchCoreV1NamespacedPodEphemeralcontainers    |     1
+ createRbacAuthorizationV1ClusterRole           |     1
+ createStorageV1CSIDriver                       |     1
+ getStorageV1APIResources                       |     2
+ deleteRbacAuthorizationV1ClusterRoleBinding    |     2
+ getStorageAPIGroup                             |     2
+ createRbacAuthorizationV1ClusterRoleBinding    |     2
+ listCoreV1NamespacedPersistentVolumeClaim      |     8
+ listCoreV1PersistentVolume                     |     8
+ deleteRbacAuthorizationV1NamespacedRoleBinding |    20
+ createRbacAuthorizationV1NamespacedRoleBinding |    20
+(18 rows)
+
+#+end_SRC
+
+Most are only hit by 1 or 2 conformance tests, with some outliers at the bottom. The question is whether it seems like these endpoints are being hit intentionally.
+
+One way we could look at it is to see the group and kind the endpoints are a part of, and the tests that hit them. If the test is part of that group and kind, it's likely that the endpoint was within the scope of the test. Even better if the test's description matches in any way this endpoint's purpose.
+
+
+I will reduce my look to just the tests hit by 1 or 2 endpoints and then expand.
+
+#+begin_src sql-mode
+with hit_endpoints as (
+  select endpoint , count(distinct test) as tests
+    from audit_event
+         join conformance.ineligible_endpoint using(endpoint)
+   where conf_test_hit is true
+   group by endpoint
+   order by tests
+)
+
+select oa.k8s_kind,
+       endpoint,
+       test.codename
+  from hit_endpoints
+       join audit_event ae using(endpoint)
+       join open_api oa using(endpoint)
+       join conformance.test test on (ae.test = test.codename)
+ where tests < 3
+ group by k8s_kind, endpoint, codename
+ order by k8s_kind, endpoint;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      k8s_kind       |                  endpoint                   |                                                            codename
+---------------------+---------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------
+ ClusterRole         | createRbacAuthorizationV1ClusterRole        | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRole         | deleteRbacAuthorizationV1ClusterRole        | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRoleBinding  | createRbacAuthorizationV1ClusterRoleBinding | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRoleBinding  | createRbacAuthorizationV1ClusterRoleBinding | [sig-auth] ServiceAccounts ServiceAccountIssuerDiscovery should support OIDC discovery of service account issuer [Conformance]
+ ClusterRoleBinding  | deleteRbacAuthorizationV1ClusterRoleBinding | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+ ClusterRoleBinding  | deleteRbacAuthorizationV1ClusterRoleBinding | [sig-auth] ServiceAccounts ServiceAccountIssuerDiscovery should support OIDC discovery of service account issuer [Conformance]
+ CSIDriver           | createStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | deleteStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | listStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | readStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ EphemeralContainers | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+ Pod                 | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+                     | getFlowcontrolApiserverAPIGroup             | [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+                     | getRbacAuthorizationAPIGroup                | [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+                     | getRbacAuthorizationV1APIResources          | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+                     | getStorageAPIGroup                          | [sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]
+                     | getStorageAPIGroup                          | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+                     | getStorageV1APIResources                    | [sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]
+                     | getStorageV1APIResources                    | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+(19 rows)
+
+#+end_SRC
+
+Of these, from my eyes, the storage endpoints and the ephemeral container
+endpoints are being hit by a kind/domain specific test.
+
+We can remove the discovery test, since something
+like ~getFlowControl...~ being hit by a discovery test just means that the test
+wanted to know if it was there and it said yes, it...discovered it. It's not
+testing the functionality beyond that.
+
+I am also iffy on the aggregator test. If we look at it specifically, it is
+hitting over 50 endpoints. I can't say that this test is targeting any of these
+above endpoints specific functionality.
+
+#+begin_src sql-mode
+select count(distinct endpoint)
+  from audit_event
+ where test = '[sig-api-machinery] Aggregator Should be able to support the 1.17 Sample API Server using the current Aggregator [Conformance]';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    53
+(1 row)
+
+#+end_SRC
+
+So if we remove the aggregator and discovery tests, what do we have?
+
+#+begin_src sql-mode
+with hit_endpoints as (
+  select endpoint , count(distinct test) as tests
+    from audit_event
+         join conformance.ineligible_endpoint using(endpoint)
+   where conf_test_hit is true
+   group by endpoint
+   order by tests
+)
+
+select oa.k8s_kind,
+       endpoint,
+       test.codename
+  from hit_endpoints
+       join audit_event ae using(endpoint)
+       join open_api oa using(endpoint)
+       join conformance.test test on (ae.test = test.codename)
+ where tests < 3
+       and codename not like '%Aggregator Should be able%'
+       and codename not like '%Discovery%'
+ group by k8s_kind, endpoint, codename
+ order by k8s_kind, endpoint;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+      k8s_kind       |                  endpoint                   |                                                       codename
+---------------------+---------------------------------------------+----------------------------------------------------------------------------------------------------------------------
+ CSIDriver           | createStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | deleteStorageV1CSIDriver                    | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | listStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ CSIDriver           | readStorageV1CSIDriver                      | [sig-storage] CSIInlineVolumes should support ephemeral VolumeLifecycleMode in CSIDriver API [Conformance]
+ EphemeralContainers | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+ Pod                 | patchCoreV1NamespacedPodEphemeralcontainers | [sig-node] Ephemeral Containers [NodeConformance] will start an ephemeral container in an existing pod [Conformance]
+                     | getStorageAPIGroup                          | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+                     | getStorageV1APIResources                    | [sig-storage] CSIStorageCapacity  should support CSIStorageCapacities API operations [Conformance]
+(8 rows)
+
+#+end_SRC
+
+And of these endpoints, what are their reasons for ineligiblity?
+
+#+begin_src sql-mode
+with hit_endpoints as (
+  select endpoint , reason, count(distinct test) as tests
+    from audit_event
+         join conformance.ineligible_endpoint using(endpoint)
+   where conf_test_hit is true
+   group by endpoint,reason
+   order by tests
+)
+
+select endpoint, reason
+  from hit_endpoints
+       join audit_event ae using(endpoint)
+       join open_api oa using(endpoint)
+       join conformance.test test on (ae.test = test.codename)
+ where tests < 3
+       and codename not like '%Aggregator Should be able%'
+       and codename not like '%Discovery%'
+ group by endpoint, reason
+ order by endpoint;
+
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint                   |              reason
+---------------------------------------------+----------------------------------
+ createStorageV1CSIDriver                    | vendor specific feature
+ deleteStorageV1CSIDriver                    | vendor specific feature
+ getStorageAPIGroup                          | vendor specific feature
+ getStorageV1APIResources                    | vendor specific feature
+ listStorageV1CSIDriver                      | vendor specific feature
+ patchCoreV1NamespacedPodEphemeralcontainers | Not eligible for conformance yet
+ readStorageV1CSIDriver                      | vendor specific feature
+(7 rows)
+
+#+end_SRC
+
+So the only one that isn't vendor-specific has an optimistic, open-ended reason. If it is decided for it to be conformant, then it's likely already tested.
+
+* Cleaning up the ineligible endpoints
+What is the breakdown of ineligible reasons?
+
+#+begin_src sql-mode
+select reason, count(*)
+  from conformance.ineligible_endpoint
+ group by reason
+ order by count desc;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                                            reason                                             | count
+-----------------------------------------------------------------------------------------------+-------
+ optional feature                                                                              |    65
+ vendor specific feature                                                                       |    54
+ Unable to be tested, and likely soon deprecated                                               |    14
+ Not eligible for conformance yet                                                              |     4
+ endpoints is currently feature gated and and will only receive e2e & conformance test in 1.25 |     3
+ Kubernetes distribution would reasonably not allow this action via the API                    |     3
+ uses kubelet api                                                                              |     2
+ pending deprecation                                                                           |     2
+ Endpoint likely to be deprecated                                                              |     1
+ still an alpha feature plan for GA 1.31                                                       |     1
+ depends on alpha feature                                                                      |     1
+ Endpoint was deprecated in 1.7                                                                |     1
+(12 rows)
+
+#+end_SRC
+
+The majority are optional or vendor-specific. Only a small amount have to do
+with deprecation.
+
+#+begin_src sql-mode
+select count(*)
+  from conformance.ineligible_endpoint
+ where reason ilike '%deprecat%';
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ count
+-------
+    18
+(1 row)
+#+end_SRC
+
+Of these deprecated endpoints, how many are still in the open api spec? I assume
+all, but if any are missing then it would make sense to remove them entirely.
+
+#+begin_src sql-mode
+with ineligible as(
+  select endpoint
+    from conformance.ineligible_endpoint
+   where reason ilike '%deprecat%'
+)
+select endpoint
+  from ineligible
+except
+select endpoint
+  from open_api
+ where release = '1.27.0';
+
+;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+ endpoint
+----------
+(0 rows)
+
+#+end_SRC
+
+
+So all the deprecated endpoints are still in our API spec.
+
+* Next steps
+It is still a unclear to me the effect to coverage if any of these endpints are
+made eligible. For one, I am uncertain which of them are actually going to be
+made eligible. There are only 4 whose reason is an upcoming eligibility and
+three of them may no longer count toward that.
+
+Of the currently ineligible that are hit by conformance tests, the majority are
+for vendor-specific features and likely wouldn't qualify anyway. The remaining
+has a reason of 'not eligible for conformance yet' and so it is positive that,
+if it is later made eligible, it is already covered by a fairly well targeted
+test.
+
+It would be good to revisit the ineligible endpoints list and standardize the
+reasons for ineligiblity. We can create consistent wording for deprecation,
+making it easier to filter these out in later queries. It woudl also be good to
+give more context to the 'optional feature' or 'not eligible yet' reasons. Will
+these endpoints always be optional and thus never conformant? What are the
+requirements for the 'not eligible yet' endpoints before they can be considered
+eligible? It might be good to have a field for "always ineligible" that will let
+us filter out those endpoints from our conversations entirely.
