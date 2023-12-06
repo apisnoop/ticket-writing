@@ -7,10 +7,10 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
-- [ ] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/StorageV1VolumeAttachment-LifecycleTest.org][StorageV1VolumeAttachment-LifecycleTest.org]]
-- [ ] test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] test pr : [[https://pr.k8s.io/][!]]
+* TODO Progress [3/6]                                                   :export:
+- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/StorageV1VolumeAttachment-LifecycleTest.org][StorageV1VolumeAttachment-LifecycleTest.org]]
+- [X] test approval issue : [[https://issues.k8s.io/122116][Write e2e test for VolumeAttachment endpoints +7 Endpoints #122116]]
+- [X] test pr : [[https://pr.k8s.io/122117][Create e2e test for VolumeAttachment endpoints #122117]]
 - [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
 - [ ] two weeks soak end date : xxxx-xx-xx
 - [ ] test promotion pr : [[https://pr.k8s.io/][!]]
