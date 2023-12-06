@@ -7,13 +7,14 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
-- [ ] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1PV-PVC-StatusTest.org][CoreV1PV-PVC-StatusTest.org]]
-- [ ] test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] test pr : [[https://pr.k8s.io/][!]]
-- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+* TODO Progress [7/7]                                                   :export:
+- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1PV-PVC-StatusTest.org][CoreV1PV-PVC-StatusTest.org]]
+- [X] test approval issue : [[https://issues.k8s.io/120891][Write e2e test for PersistentVolumeStatus & PersistentVolumeClaimStatus Endpoints +6 Endpoints #120891]]
+- [X] test pr : [[https://pr.k8s.io/120892][Write e2e test for PersistentVolumeStatus & PersistentVolumeClaimStatus Endpoints +6 Endpoints #120892]]
+- [X] two weeks soak start date : 17 Oct 2023 [[https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.apply.changes.to.a.pv/pvc.status][testgrid-link]]
+- [X] two weeks soak end date : 31 Oct 2023
+- [X] test promotion pr : [[https://pr.k8s.io/121331][Promote e2e test for PersistentVolumeStatus & PersistentVolumeClaimStatus Endpoints +6 Endpoints #121331]]
+- [X] remove endpoints from [[https://github.com/kubernetes/kubernetes/blob/master/test/conformance/testdata/pending_eligible_endpoints.yaml][pending_eligible_endpoints.yaml]] : [[https://github.com/kubernetes/kubernetes/pull/121332][Remove PersistentVolumeStatus & PersistentVolumeClaimStatus Endpoints from pending_eligible_endpoints.yaml #121332]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 ** Untested Endpoints

@@ -1,11 +1,12 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[7/7]</code>
 
--   [ ] APISnoop org-flow : [StorageV1StorageClass-LifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/StorageV1StorageClass-LifecycleTest.org)
--   [ ] test approval issue : [#](https://issues.k8s.io/)
--   [ ] test pr : [!](https://pr.k8s.io/)
--   [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
--   [ ] two weeks soak end date : xxxx-xx-xx
--   [ ] test promotion pr : [!](https://pr.k8s.io/)
+-   [X] APISnoop org-flow : [StorageV1StorageClass-LifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/StorageV1StorageClass-LifecycleTest.org)
+-   [X] test approval issue : [Write e2e test for StorageClass Endpoints + 7 Endpoints #120470](https://issues.k8s.io/120470)
+-   [X] test pr : [Write e2e test for StorageClass Endpoints + 7 Endpoints #120471](https://pr.k8s.io/120471)
+-   [X] two weeks soak start date : 8 Sept 2023 [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.run.through.the.lifecycle.of.a.StorageClass)
+-   [X] two weeks soak end date : 22 Sept 2023
+-   [X] test promotion pr : [Promote e2e test for StorageClass Endpoints + 7 Endpoints #120761](https://pr.k8s.io/120761)
+-   [X] remove endpoints from [pending<sub>eligible</sub><sub>endpoints.yaml</sub>](https://github.com/kubernetes/kubernetes/blob/master/test/conformance/testdata/pending_eligible_endpoints.yaml) : [remove storageclass endpoints from pending<sub>eligible</sub><sub>endpoints.yaml</sub> #120762](https://github.com/kubernetes/kubernetes/pull/120762)
 
 
 # Identifying an untested feature Using APISnoop
