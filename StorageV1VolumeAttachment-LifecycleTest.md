@@ -1,8 +1,8 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[3/6]</code>
 
--   [ ] APISnoop org-flow : [StorageV1VolumeAttachment-LifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/StorageV1VolumeAttachment-LifecycleTest.org)
--   [ ] test approval issue : [#](https://issues.k8s.io/)
--   [ ] test pr : [!](https://pr.k8s.io/)
+-   [X] APISnoop org-flow : [StorageV1VolumeAttachment-LifecycleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/StorageV1VolumeAttachment-LifecycleTest.org)
+-   [X] test approval issue : [Write e2e test for VolumeAttachment endpoints +7 Endpoints #122116](https://issues.k8s.io/122116)
+-   [X] test pr : [Create e2e test for VolumeAttachment endpoints #122117](https://pr.k8s.io/122117)
 -   [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
 -   [ ] two weeks soak end date : xxxx-xx-xx
 -   [ ] test promotion pr : [!](https://pr.k8s.io/)
