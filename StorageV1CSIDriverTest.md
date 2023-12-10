@@ -1,11 +1,13 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[8/8]</code>
 
--   [ ] APISnoop org-flow : [StorageV1CSIDriverTest.org](https://github.com/apisnoop/ticket-writing/blob/master/StorageV1CSIDriverTest.org)
--   [ ] test approval issue : [#](https://issues.k8s.io/)
--   [ ] test pr : [!](https://pr.k8s.io/)
--   [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
--   [ ] two weeks soak end date : xxxx-xx-xx
--   [ ] test promotion pr : [!](https://pr.k8s.io/)
+-   [X] APISnoop org-flow : [StorageV1CSIDriverTest.org](https://github.com/apisnoop/ticket-writing/blob/master/StorageV1CSIDriverTest.org)
+-   [X] test approval issue : [Write e2e test for StorageV1CSIDriver Endpoints + 3 Endpoints #118098](https://issues.k8s.io/118098)
+-   [X] test pr : [Write e2e test for StorageV1CSIDriver Endpoints + 3 Endpoints #118099](https://pr.k8s.io/118099)
+-   [X] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.run.through.the.lifecycle.of.a.CSIDriver) 26 May 2023
+-   [X] two weeks soak end date : 9 June 2023
+-   [X] test promotion pr : [Promote test for StorageV1CSIDriver Endpoints + 3 Endpoints #118478](https://pr.k8s.io/118478)
+-   [X] remove endpoints from [pending<sub>eligible</sub><sub>endpoints.yaml</sub>](https://github.com/kubernetes/kubernetes/blob/master/test/conformance/testdata/pending_eligible_endpoints.yaml) : [Remove csidriver endpoints from pending<sub>eligible</sub><sub>endpoints.yaml</sub> #118479](https://pr.k8s.io/118479)
+-   [X] End of release 1.28 Release: Remove duplicate Conformance test that do not cover Patch, Replace, DeleteCollection.[Remove conformance test for StorageV1CSIDriver Endpoints #119025](https://github.com/kubernetes/kubernetes/pull/119025)
 
 
 # Identifying an untested feature Using APISnoop

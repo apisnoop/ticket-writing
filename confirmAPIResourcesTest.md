@@ -1,11 +1,12 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[7/7]</code>
 
--   [ ] APISnoop org-flow : [confirmAPIResourcesTest.org](https://github.com/apisnoop/ticket-writing/blob/master/confirmAPIResourcesTest.org)
--   [ ] test approval issue : [#](https://issues.k8s.io/)
--   [ ] test pr : [!](https://pr.k8s.io/)
--   [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
--   [ ] two weeks soak end date : xxxx-xx-xx
--   [ ] test promotion pr : [!](https://pr.k8s.io/)
+-   [X] APISnoop org-flow : [confirmAPIResourcesTest.org](https://github.com/apisnoop/ticket-writing/blob/master/confirmAPIResourcesTest.org)
+-   [X] test approval issue : [Write e2e test for APIResources endpoints + 12 Endpoints #117610](https://issues.k8s.io/117610)
+-   [X] test pr : [Write e2e test for APIResources endpoints + 12 Endpoints #117611](https://pr.k8s.io/117611)
+-   [X] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.locate.the.groupVersion.and.a.resource.within.each.APIGroup) 3 May 2023
+-   [X] two weeks soak end date : 16 May 2023
+-   [X] test promotion pr : [Promote e2e test for APIResources endpoints + 12 Endpoints #118001](https://pr.k8s.io/118001)
+-   [X] remove endpoints from [pending<sub>eligible</sub><sub>endpoints.yaml</sub>](https://github.com/kubernetes/kubernetes/blob/master/test/conformance/testdata/pending_eligible_endpoints.yaml) : [Remove Get \* APIResources endpoints from the pending<sub>eligible</sub><sub>endpoints.yaml</sub> file #118002](https://pr.k8s.io/118002)
 
 
 # Identifying an untested feature Using APISnoop
