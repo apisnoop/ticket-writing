@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
--   [ ] APISnoop org-flow : [CoreV1PodEphemeralcontainersTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1PodEphemeralcontainersTest.org)
--   [ ] test approval issue : [#](https://issues.k8s.io/)
--   [ ] test pr : [!](https://pr.k8s.io/)
--   [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
--   [ ] two weeks soak end date : xxxx-xx-xx
--   [ ] test promotion pr : [!](https://pr.k8s.io/)
+-   [X] APISnoop org-flow : [CoreV1PodEphemeralcontainersTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1PodEphemeralcontainersTest.org)
+-   [X] test approval issue : [Write e2e test for PodEphemeralcontainers endpoints + 2 Endpoints #117894](https://issues.k8s.io/117894)
+-   [X] test pr : [Write e2e test for PodEphemeralcontainers endpoints + 2 Endpoints #117895](https://pr.k8s.io/117895)
+-   [X] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.update.the.ephemeral.containers.in.an.existing.pod) 18 May 2023
+-   [X] two weeks soak end date : 01 June 2023
+-   [X] test promotion pr : [Promote e2e test for PodEphemeralcontainers endpoints + 2 Endpoints #118304](https://pr.k8s.io/118304)
 
 
 # Identifying an untested feature Using APISnoop

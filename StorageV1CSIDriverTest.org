@@ -7,13 +7,15 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
-- [ ] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/StorageV1CSIDriverTest.org][StorageV1CSIDriverTest.org]]
-- [ ] test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] test pr : [[https://pr.k8s.io/][!]]
-- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+* TODO Progress [8/8]                                                   :export:
+- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/StorageV1CSIDriverTest.org][StorageV1CSIDriverTest.org]]
+- [X] test approval issue : [[https://issues.k8s.io/118098][Write e2e test for StorageV1CSIDriver Endpoints + 3 Endpoints #118098]]
+- [X] test pr : [[https://pr.k8s.io/118099][Write e2e test for StorageV1CSIDriver Endpoints + 3 Endpoints #118099]]
+- [X] two weeks soak start date : [[https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.run.through.the.lifecycle.of.a.CSIDriver][testgrid-link]] 26 May 2023
+- [X] two weeks soak end date : 9 June 2023
+- [X] test promotion pr : [[https://pr.k8s.io/118478][Promote test for StorageV1CSIDriver Endpoints + 3 Endpoints #118478]]
+- [X] remove endpoints from [[https://github.com/kubernetes/kubernetes/blob/master/test/conformance/testdata/pending_eligible_endpoints.yaml][pending_eligible_endpoints.yaml]] : [[https://pr.k8s.io/118479][Remove csidriver endpoints from pending_eligible_endpoints.yaml #118479]]
+- [X] End of release 1.28 Release: Remove duplicate Conformance test that do not cover Patch, Replace, DeleteCollection.[[https://github.com/kubernetes/kubernetes/pull/119025][Remove conformance test for StorageV1CSIDriver Endpoints #119025]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 
