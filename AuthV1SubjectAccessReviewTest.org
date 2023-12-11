@@ -7,13 +7,13 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
-- [ ] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/AuthV1SubjectAccessReviewTest.org][AuthV1SubjectAccessReviewTest.org]]
-- [ ] test approval issue : [[https://issues.k8s.io/][#]]
-- [ ] test pr : [[https://pr.k8s.io/][!]]
-- [ ] two weeks soak start date : [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] two weeks soak end date : xxxx-xx-xx
-- [ ] test promotion pr : [[https://pr.k8s.io/][!]]
+* TODO Progress [6/6]                                                   :export:
+- [X] APISnoop org-flow : [[https://github.com/apisnoop/ticket-writing/blob/master/AuthV1SubjectAccessReviewTest.org][AuthV1SubjectAccessReviewTest.org]]
+- [X] test approval issue : [[https://issues.k8s.io/114344][Write e2e test for SubjectAccessReview & createAuthorizationV1NamespacedLocalSubjectAccessReview +2 Endpoints #114344]]
+- [X] test pr : [[https://pr.k8s.io/114345][Write e2e test for SubjectAccessReview & createAuthorizationV1NamespacedLocalSubjectAccessReview +2 Endpoints #114345]]
+- [X] two weeks soak start date : 16 Dec 2022 [[https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.support.SubjectReview.API.operations][testgrid-link]]
+- [X] two weeks soak end date : 31 Dec 2022
+- [X] test promotion pr : [[https://pr.k8s.io/114906][Promote e2e test for SubjectAccessReview & createAuthorizationV1NamespacedLocalSubjectAccessReview +2 Endpoints #114906]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 

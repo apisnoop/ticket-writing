@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
--   [ ] APISnoop org-flow : [AuthV1SubjectAccessReviewTest.org](https://github.com/apisnoop/ticket-writing/blob/master/AuthV1SubjectAccessReviewTest.org)
--   [ ] test approval issue : [#](https://issues.k8s.io/)
--   [ ] test pr : [!](https://pr.k8s.io/)
--   [ ] two weeks soak start date : [testgrid-link](https://testgrid.k8s.io/)
--   [ ] two weeks soak end date : xxxx-xx-xx
--   [ ] test promotion pr : [!](https://pr.k8s.io/)
+-   [X] APISnoop org-flow : [AuthV1SubjectAccessReviewTest.org](https://github.com/apisnoop/ticket-writing/blob/master/AuthV1SubjectAccessReviewTest.org)
+-   [X] test approval issue : [Write e2e test for SubjectAccessReview & createAuthorizationV1NamespacedLocalSubjectAccessReview +2 Endpoints #114344](https://issues.k8s.io/114344)
+-   [X] test pr : [Write e2e test for SubjectAccessReview & createAuthorizationV1NamespacedLocalSubjectAccessReview +2 Endpoints #114345](https://pr.k8s.io/114345)
+-   [X] two weeks soak start date : 16 Dec 2022 [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.support.SubjectReview.API.operations)
+-   [X] two weeks soak end date : 31 Dec 2022
+-   [X] test promotion pr : [Promote e2e test for SubjectAccessReview & createAuthorizationV1NamespacedLocalSubjectAccessReview +2 Endpoints #114906](https://pr.k8s.io/114906)
 
 
 # Identifying an untested feature Using APISnoop

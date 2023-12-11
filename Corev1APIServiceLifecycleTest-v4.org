@@ -7,13 +7,13 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
+* TODO Progress [6/6]                                                   :export:
 - [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/Corev1APIServiceLifecycleTest-v4.org][Corev1APIServiceLifecycleTest-v4.org]]
-- [ ] Test approval issue: [[https://issues.k8s.io/][#]]
-- [ ] Test PR: [[https://pr.k8s.io/][!]]
-- [ ] Two weeks soak start date: [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] Two weeks soak end date:
-- [ ] Test promotion PR: [[https://pr.k8s.io/][!]]
+- [X] Test approval issue: [[https://issues.k8s.io/115213][Write APIService lifecycle test + 4 Endpoints #115213]]
+- [X] Test PR: [[https://pr.k8s.io/115214][Write APIService lifecycle test + 4 Endpoints #115214]]
+- [X] Two weeks soak start date: [[https://testgrid.k8s.io/][testgrid-link]]
+- [X] Two weeks soak end date:
+- [X] Test promotion PR: [[https://pr.k8s.io/115214][Write APIService lifecycle test + 4 Endpoints #115214]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 
