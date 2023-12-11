@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [Corev1APIServiceLifecycleTest-v4.org](https://github.com/apisnoop/ticket-writing/blob/master/Corev1APIServiceLifecycleTest-v4.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [!](https://pr.k8s.io/)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [!](https://pr.k8s.io/)
+-   [X] Test approval issue: [Write APIService lifecycle test + 4 Endpoints #115213](https://issues.k8s.io/115213)
+-   [X] Test PR: [Write APIService lifecycle test + 4 Endpoints #115214](https://pr.k8s.io/115214)
+-   [X] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
+-   [X] Two weeks soak end date:
+-   [X] Test promotion PR: [Write APIService lifecycle test + 4 Endpoints #115214](https://pr.k8s.io/115214)
 
 
 # Identifying an untested feature Using APISnoop
