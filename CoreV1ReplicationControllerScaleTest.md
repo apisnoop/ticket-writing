@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [ReplicationControllerScaleTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ReplicationControllerScaleTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [#](https://pr.k8s.io/)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [#](https://pr.k8s.io/)
+-   [X] Test approval issue: [Write e2e test for Read, Replace ReplicationController scale endpoints +2 Endpoints #112585](https://issues.k8s.io/112585)
+-   [X] Test PR: [Write e2e test for Read, Replace ReplicationController scale endpoints +2 Endpoints #112586](https://pr.k8s.io/112586)
+-   [X] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.get.and.update.a.ReplicationController.scale) 29 Sept 2022
+-   [X] Two weeks soak end date: 14 Oct 2022
+-   [X] Test promotion PR: [Promote Read, Replace ReplicationController scale endpoints Conformance - +2 Endpoints #113059](https://pr.k8s.io/113059)
 
 
 # Identifying an untested feature Using APISnoop

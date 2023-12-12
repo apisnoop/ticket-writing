@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [CoreV1LimitRangeTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1LimitRangeTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [#](https://pr.k8s.io/)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [#](https://pr.k8s.io/)
+-   [X] Test approval issue: [112429](https://issues.k8s.io/112429)
+-   [X] Test PR: [#112430](https://pr.k8s.io/112430)
+-   [X] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.list,.patch.and.delete.a.LimitRange.by.collection) 4 Oct 2022
+-   [X] Two weeks soak end date: 18 Oct 2022
+-   [X] Test promotion PR: [Promote List, Patch and Delete LimitRange test to Conformance - +3 Endpoints #113060](https://pr.k8s.io/113060)
 
 
 # Identifying an untested feature Using APISnoop

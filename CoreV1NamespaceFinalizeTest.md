@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [CoreV1NamespaceFinalizeTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1NamespaceFinalizeTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [#](https://pr.k8s.io/)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [#](https://pr.k8s.io/)
+-   [X] Test approval issue: [Write e2e test for replaceCoreV1NamespaceFinalize +1 Endpoints #112890](https://issues.k8s.io/112890)
+-   [X] Test PR: [Write e2e test for replaceCoreV1NamespaceFinalize +1 Endpoints #112891](https://pr.k8s.io/112891)
+-   [X] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/sig-api-machinery-gce-gke#gce-serial&graph-metrics=test-duration-minutes&include-filter-by-regex=should.apply.a.finalizer.to.a.Namespace&width=5) 15 Oct 2022
+-   [X] Two weeks soak end date: 28 Oct 2022
+-   [X] Test promotion PR: [Promote replaceCoreV1NamespaceFinalize +1 Endpoints #113454](https://pr.k8s.io/113454)
 
 
 # Identifying an untested feature Using APISnoop
