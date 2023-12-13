@@ -1,11 +1,11 @@
-# Progress <code>[1/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [CoreV1ServiceAccountReplaceTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ServiceAccountReplaceTest.org)
--   [ ] Test approval issue: [#](https://issues.k8s.io/)
--   [ ] Test PR: [#](https://pr.k8s.io/)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [#](https://pr.k8s.io/)
+-   [X] Test approval issue: [Write e2e test for replaceCoreV1NamespacedServiceAccount - +1 Endpoint #112822](https://issues.k8s.io/112822)
+-   [X] Test PR: [Write e2e test for replaceCoreV1NamespacedServiceAccount - +1 Endpoint #112823](https://pr.k8s.io/112823)
+-   [X] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should%20update%20a%20ServiceAccount) 5 Oct 2022
+-   [X] Two weeks soak end date: 19 Oct 2022
+-   [X] Test promotion PR: [Promote replaceCoreV1NamespacedServiceAccount test to Conformance - +1 Endpoint #113061](https://pr.k8s.io/113061)
 
 
 # Identifying an untested feature Using APISnoop

@@ -7,13 +7,13 @@
 #+PROPERTY: header-args:sql-mode :product postgres
 
 
-* TODO Progress [1/6]                                                :export:
+* TODO Progress [6/6]                                                   :export:
 - [X] APISnoop org-flow: [[https://github.com/apisnoop/ticket-writing/blob/master/CoreV1NamespaceFinalizeTest.org][CoreV1NamespaceFinalizeTest.org]]
-- [ ] Test approval issue: [[https://issues.k8s.io/][#]]
-- [ ] Test PR: [[https://pr.k8s.io/][#]]
-- [ ] Two weeks soak start date: [[https://testgrid.k8s.io/][testgrid-link]]
-- [ ] Two weeks soak end date:
-- [ ] Test promotion PR: [[https://pr.k8s.io/][#]]
+- [X] Test approval issue: [[https://issues.k8s.io/112890][Write e2e test for replaceCoreV1NamespaceFinalize +1 Endpoints #112890]]
+- [X] Test PR: [[https://pr.k8s.io/112891][Write e2e test for replaceCoreV1NamespaceFinalize +1 Endpoints #112891]]
+- [X] Two weeks soak start date: [[https://testgrid.k8s.io/sig-api-machinery-gce-gke#gce-serial&graph-metrics=test-duration-minutes&include-filter-by-regex=should.apply.a.finalizer.to.a.Namespace&width=5][testgrid-link]] 15 Oct 2022
+- [X] Two weeks soak end date: 28 Oct 2022
+- [X] Test promotion PR: [[https://pr.k8s.io/113454][Promote replaceCoreV1NamespaceFinalize +1 Endpoints #113454]]
 
 * Identifying an untested feature Using APISnoop                     :export:
 

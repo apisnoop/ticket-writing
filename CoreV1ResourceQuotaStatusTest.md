@@ -1,11 +1,11 @@
-# Progress <code>[3/6]</code>
+# Progress <code>[6/6]</code>
 
 -   [X] APISnoop org-flow: [CoreV1ResourceQuotaStatusTest.org](https://github.com/apisnoop/ticket-writing/blob/master/CoreV1ResourceQuotaStatusTest.org)
 -   [X] Test approval issue: [#111956](https://issues.k8s.io/111956)
 -   [X] Test PR: [#111957](https://pr.k8s.io/111957)
--   [ ] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/)
--   [ ] Two weeks soak end date:
--   [ ] Test promotion PR: [!](https://pr.k8s.io/)
+-   [X] Two weeks soak start date: [testgrid-link](https://testgrid.k8s.io/sig-release-master-blocking#gce-cos-master-default&width=5&graph-metrics=test-duration-minutes&include-filter-by-regex=should.apply.changes.to.a.resourcequota.status) 19 Oct 2022
+-   [X] Two weeks soak end date: 2 Nov 2022
+-   [X] Test promotion PR: [Promote test for ResourceQuota status to Conformance +3 Endpoints #113455](https://pr.k8s.io/113455)
 
 
 # Identifying an untested feature Using APISnoop
