@@ -1,0 +1,281 @@
+# -*- ii: apisnoop; -*-
+#+TITLE: Gateway API Conformance
+#+AUTHOR: ii team
+#+TODO: TODO(t) NEXT(n) IN-PROGRESS(i) BLOCKED(b) | DONE(d)
+#+OPTIONS: toc:nil tags:nil todo:nil
+#+EXPORT_SELECT_TAGS: export
+#+PROPERTY: header-args:sql-mode :product postgres
+
+
+* TODO Progress [9/11]                                                  :export:
+- [X] Create Cluster + apisnoop
+- [X] Confirm apisnoop events
+- [X] Install gateway-api crds
+- [X] List gateway-api crds
+- [X] Clone gateway-api repo
+- [X] Check gateway-api repo
+- [X] Install kong operator
+- [X] Create GatewayClass kong
+- [X] Check GatewayClass kong
+- [ ] Run conformance tests
+- [ ] Verify coverage with APISnoop
+
+* Prerequisites                                                         :export:
+
+- https://kind.sigs.k8s.io/
+
+#+begin_src shell
+kind version
+#+end_src
+
+#+RESULTS:
+#+begin_example
+kind v0.22.0 go1.22.0 linux/amd64
+#+end_example
+
+* Create kind cluster with apisnoop                                     :export:
+
+#+begin_src tmux :session gateway:kind
+cd ~/repos/github/kubernetes-sigs/apisnoop/kind
+kind create cluster --config kind+apisnoop.yaml
+kubectl wait --for=condition=Ready --selector="app.kubernetes.io/name=apisnoop" --timeout=500s pod
+#+end_src
+
+* Confirm e2e audit events                                              :export:
+
+#+begin_src shell
+kubectl exec apisnoop-kind-control-plane -c snoopdb -- psql -U apisnoop -c 'select count(*) from public.audit_event;'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+ count
+--------
+ 601399
+(1 row)
+
+#+end_example
+
+* Confirm live events                                                   :export:
+
+#+begin_src shell
+kubectl exec apisnoop-kind-control-plane -c snoopdb -- psql -U apisnoop -c 'select count(*) from testing.audit_event;'
+#+end_src
+
+#+RESULTS:
+#+begin_example
+ count
+-------
+ 15447
+(1 row)
+
+#+end_example
+
+* Install gateway-api crds                                              :export:
+
+#+begin_quote
+- https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api
+#+end_quote
+
+#+begin_src shell
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+#+end_src
+
+#+RESULTS:
+#+begin_example
+customresourcedefinition.apiextensions.k8s.io/gatewayclasses.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/gateways.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/httproutes.gateway.networking.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/referencegrants.gateway.networking.k8s.io created
+#+end_example
+
+* List gateway-api crds                                                 :export:
+
+#+begin_src shell
+kubectl api-resources | grep gateway
+#+end_src
+
+#+RESULTS:
+#+begin_example
+gatewayclasses                    gc           gateway.networking.k8s.io/v1        false        GatewayClass
+gateways                          gtw          gateway.networking.k8s.io/v1        true         Gateway
+httproutes                                     gateway.networking.k8s.io/v1        true         HTTPRoute
+referencegrants                   refgrant     gateway.networking.k8s.io/v1beta1   true         ReferenceGrant
+#+end_example
+
+* Clone gateway-api repo                                                :export:
+
+#+begin_src tmux :session gateway:conformance
+cd /tmp
+git clone https://github.com/kubernetes-sigs/gateway-api
+#+end_src
+
+* Check gateway-api repo                                                :export:
+
+#+begin_src tmux :session gateway:conformance
+cd /tmp/gateway-api
+pwd
+git log -1
+#+end_src
+
+* Install kong operator                                                 :export:
+
+- https://github.com/Kong/charts
+- https://docs.konghq.com/gateway-operator/latest/get-started/konnect/install/
+
+#+begin_src tmux :session gateway:kong
+helm repo add kong https://charts.konghq.com
+helm repo update
+helm upgrade --install kgo kong/gateway-operator -n kong-system --create-namespace
+kubectl -n kong-system wait --for=condition=Available=true --timeout=120s deployment/kgo-gateway-operator-controller-manager
+#+end_src
+
+#+begin_src tmux :session gateway:kong
+kubectl -n kong-system get all
+#+end_src
+
+* Create a GatewayClass                                                 :export:
+
+#+begin_src tmux :session gateway:class
+echo '
+kind: GatewayConfiguration
+apiVersion: gateway-operator.konghq.com/v1beta1
+metadata:
+  name: kong
+  namespace: default
+spec:
+  dataPlaneOptions:
+    deployment:
+      podTemplateSpec:
+        spec:
+          containers:
+          - name: proxy
+            image: kong:3.6.1
+            readinessProbe:
+              initialDelaySeconds: 1
+              periodSeconds: 1
+  controlPlaneOptions:
+    deployment:
+      podTemplateSpec:
+        spec:
+          containers:
+          - name: controller
+            image: kong/kubernetes-ingress-controller:3.1.3
+            env:
+            - name: CONTROLLER_LOG_LEVEL
+              value: debug
+---
+kind: GatewayClass
+apiVersion: gateway.networking.k8s.io/v1beta1
+metadata:
+  name: kong
+spec:
+  controllerName: konghq.com/gateway-operator
+  parametersRef:
+    group: gateway-operator.konghq.com
+    kind: GatewayConfiguration
+    name: kong
+    namespace: default
+---
+kind: Gateway
+apiVersion: gateway.networking.k8s.io/v1beta1
+metadata:
+  name: kong
+  namespace: default
+spec:
+  gatewayClassName: kong
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+
+' | kubectl apply -f -
+#+end_src
+
+* Check gatewayclass                                                    :export:
+
+#+begin_src tmux :session gateway:class
+kubectl get gatewayclass kong -o yaml
+#+end_src
+
+* Run conformance tests                                                 :export:
+
+#+begin_src tmux :session gateway:conformance
+go test ./conformance -debug -run TestConformance -args \
+    --gateway-class=kong \
+    --supported-features=Gateway,HTTPRoute
+#+end_src
+
+#+begin_example
+heyste@msi:/tmp/gateway-api$ go test ./conformance -debug -run TestConformance -args \>     --gateway-class=kong \
+>     --supported-features=Gateway,HTTPRoute
+--- FAIL: TestConformance (0.14s)
+    conformance.go:113: Running conformance tests with:
+    conformance.go:131:   GatewayClass: kong
+    conformance.go:132:   Cleanup Resources: true
+    conformance.go:133:   Debug: true
+    conformance.go:134:   Enable All Features: false
+    conformance.go:135:   Supported Features: [Gateway HTTPRoute]
+    conformance.go:136:   ExemptFeatures: []
+    conformance.go:117:
+                Error Trace:    /tmp/gateway-api/conformance/conformance.go:117
+                                                        /tmp/gateway-api/conformance/conformance.go:103
+                                                        /tmp/gateway-api/conformance/conformance_test.go:26
+                Error:          Received unexpected error:
+                                multiple gateway API CRDs channels detected
+                Test:           TestConformance
+                Messages:       error initializing conformance suite
+FAIL
+FAIL    sigs.k8s.io/gateway-api/conformance     0.152s
+FAIL
+#+end_example
+
+* Verifying coverage with APISnoop                                      :export:
+
+This query (placeholder) shows the following endpoints hit by useragent helm.
+
+#+begin_src sql-mode :eval never-export :exports both :session none
+select distinct substring(endpoint from '\w+') AS endpoint,
+                right(useragent,55) AS useragent
+from  testing.audit_event
+where useragent like '%helm%'
+  and endpoint ilike '%'
+order by endpoint
+limit 30;
+#+end_src
+
+#+RESULTS:
+#+begin_SRC example
+                  endpoint                  |                  useragent
+--------------------------------------------+----------------------------------------------
+ createCoreV1NamespacedSecret               | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAdmissionregistrationV1APIResources     | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getApiextensionsV1APIResources             | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getApiregistrationV1APIResources           | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAPIVersions                             | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAppsV1APIResources                      | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAuthenticationV1APIResources            | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAuthorizationV1APIResources             | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAutoscalingV1APIResources               | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getAutoscalingV2APIResources               | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getBatchV1APIResources                     | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getCertificatesV1APIResources              | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getCodeVersion                             | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getCoordinationV1APIResources              | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getCoreAPIVersions                         | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getCoreV1APIResources                      | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getDiscoveryV1APIResources                 | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getEventsV1APIResources                    | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getFlowcontrolApiserverV1APIResources      | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getFlowcontrolApiserverV1beta3APIResources | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getNetworkingV1APIResources                | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getNodeV1APIResources                      | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getPolicyV1APIResources                    | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getRbacAuthorizationV1APIResources         | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getSchedulingV1APIResources                | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ getStorageV1APIResources                   | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ listCoreV1NamespacedSecret                 | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+ replaceCoreV1NamespacedSecret              | helm/v0.0.0 (linux/amd64) kubernetes/$Format
+(28 rows)
+
+#+end_SRC
