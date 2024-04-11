@@ -24,7 +24,7 @@
 
 - https://kind.sigs.k8s.io/
 
-#+begin_src shell
+#+begin_src shell :exports both
 kind version
 #+end_src
 
@@ -43,7 +43,7 @@ kubectl wait --for=condition=Ready --selector="app.kubernetes.io/name=apisnoop" 
 
 * Confirm e2e audit events                                              :export:
 
-#+begin_src shell
+#+begin_src shell :exports both
 kubectl exec apisnoop-kind-control-plane -c snoopdb -- psql -U apisnoop -c 'select count(*) from public.audit_event;'
 #+end_src
 
@@ -58,7 +58,7 @@ kubectl exec apisnoop-kind-control-plane -c snoopdb -- psql -U apisnoop -c 'sele
 
 * Confirm live events                                                   :export:
 
-#+begin_src shell
+#+begin_src shell :exports both
 kubectl exec apisnoop-kind-control-plane -c snoopdb -- psql -U apisnoop -c 'select count(*) from testing.audit_event;'
 #+end_src
 
@@ -77,7 +77,7 @@ kubectl exec apisnoop-kind-control-plane -c snoopdb -- psql -U apisnoop -c 'sele
 - https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api
 #+end_quote
 
-#+begin_src shell
+#+begin_src shell :exports both
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
 #+end_src
 
@@ -91,7 +91,7 @@ customresourcedefinition.apiextensions.k8s.io/referencegrants.gateway.networking
 
 * List gateway-api crds                                                 :export:
 
-#+begin_src shell
+#+begin_src shell :exports both
 kubectl api-resources | grep gateway
 #+end_src
 
