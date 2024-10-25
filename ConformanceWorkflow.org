@@ -1,0 +1,87 @@
+#+title: Conformance Workflow
+#+startup: overview
+
+* Agenda
+
+- [ ] Conformance Workflow Introduction
+- [ ] Launch Cluster with apisnoop
+- [ ] Clone K8s repo
+- [ ] Clone conformance workflow
+- [ ] Review status of the cluster
+- [ ] Review Service Account e2e tests
+- [ ] Switch to Conformance workflow for Service Account Token
+- [ ] Run e2e test for Service Account Token
+- [ ] Review apisnoop findings
+- [ ] Final thoughts and Questions
+
+** Launch inital TMUX session
+
+#+begin_example
+tmux new -d -s "conformance" -n kind
+#+end_example
+
+* Launch Cluster
+** Using kind
+
+#+begin_src tmux :session "conformance:kind" :results silent
+cd apisnoop/kind
+kind create cluster --config kind+apisnoop.yaml
+#+end_src
+
+* Clone K8s repo
+
+#+begin_src tmux :session "conformance:k8s" :results silient
+mkdir -p ~/go/src/k8s.io
+cd $_
+git clone https://github.com/kubernetes/kubernetes.git
+#+end_src
+
+* Clone Conformance Workflow
+
+#+begin_src tmux :session "conformance:workflow" :results silient
+git clone https://github.com/apisnoop/ticket-writing.git
+#+end_src
+
+* Review Cluster & apisnoop
+
+#+begin_src tmux :session "conformance:cluster" :results silient
+kubectl get nodes -owide
+#+end_src
+
+#+begin_src tmux :session "conformance:cluster" :results silient
+kubectl get pods -A
+#+end_src
+
+* Walk through Service Account e2e tests
+
+#+begin_src tmux :session "conformance:e2e-test" :results silient
+cd ~/go/src/k8s.io/kubernetes
+grep ginkgo.It test/e2e/auth/service_accounts.go
+#+end_src
+
+#+begin_src tmux :session "conformance:e2e-test" :results silient
+grep framework.ConformanceIt test/e2e/auth/service_accounts.go
+#+end_src
+
+* Switch to Conformance workflow for Service Account Token
+
+Check workflow document for ServiceAccountToken endpoint
+  - [[~/ticket-writing/CoreV1ServiceAccountTokenTest.org]]
+
+* Run e2e test for Service Account Token
+
+#+begin_src tmux :session "conformance:e2e-test" :results silient
+cd ~/go/src/k8s.io/kubernetes
+export KUBECONFIG=~/.kube/config
+export TEST_NAME="should create a serviceAccountToken and ensure a successful TokenReview"
+go test ./test/e2e -ginkgo.v -v -timeout=0 -ginkgo.focus="$TEST_NAME"
+#+end_src
+
+#+begin_src tmux :session "conformance:cluster" :results silient
+kubectl get ns
+#+end_src
+
+* Review apisnoop findings
+
+Check workflow document for ServiceAccountToken endpoint
+  - [[~/ticket-writing/CoreV1ServiceAccountTokenTest.org]]
