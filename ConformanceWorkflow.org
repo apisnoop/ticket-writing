@@ -30,7 +30,7 @@ kind create cluster --config kind+apisnoop.yaml
 
 * Clone K8s repo
 
-#+begin_src tmux :session "conformance:k8s" :results silient
+#+begin_src tmux :session "conformance:k8s" :results silent
 mkdir -p ~/go/src/k8s.io
 cd $_
 git clone https://github.com/kubernetes/kubernetes.git
@@ -38,28 +38,28 @@ git clone https://github.com/kubernetes/kubernetes.git
 
 * Clone Conformance Workflow
 
-#+begin_src tmux :session "conformance:workflow" :results silient
+#+begin_src tmux :session "conformance:workflow" :results silent
 git clone https://github.com/apisnoop/ticket-writing.git
 #+end_src
 
 * Review Cluster & apisnoop
 
-#+begin_src tmux :session "conformance:cluster" :results silient
+#+begin_src tmux :session "conformance:cluster" :results silent
 kubectl get nodes -owide
 #+end_src
 
-#+begin_src tmux :session "conformance:cluster" :results silient
+#+begin_src tmux :session "conformance:cluster" :results silent
 kubectl get pods -A
 #+end_src
 
 * Walk through Service Account e2e tests
 
-#+begin_src tmux :session "conformance:e2e-test" :results silient
+#+begin_src tmux :session "conformance:e2e-test" :results silent
 cd ~/go/src/k8s.io/kubernetes
 grep ginkgo.It test/e2e/auth/service_accounts.go
 #+end_src
 
-#+begin_src tmux :session "conformance:e2e-test" :results silient
+#+begin_src tmux :session "conformance:e2e-test" :results silent
 grep framework.ConformanceIt test/e2e/auth/service_accounts.go
 #+end_src
 
@@ -69,16 +69,25 @@ Check workflow document for ServiceAccountToken endpoint
   - [[~/ticket-writing/CoreV1ServiceAccountTokenTest.org]]
 
 * Run e2e test for Service Account Token
+** Watch namespaces used for e2e tests
 
-#+begin_src tmux :session "conformance:e2e-test" :results silient
+#+begin_src tmux :session "conformance:cluster" :results silent
+kubectl get ns -w
+#+end_src
+
+** Run e2e test
+
+#+begin_src tmux :session "conformance:e2e-test" :results silent
 cd ~/go/src/k8s.io/kubernetes
 export KUBECONFIG=~/.kube/config
 export TEST_NAME="should create a serviceAccountToken and ensure a successful TokenReview"
 go test ./test/e2e -ginkgo.v -v -timeout=0 -ginkgo.focus="$TEST_NAME"
 #+end_src
 
-#+begin_src tmux :session "conformance:cluster" :results silient
-kubectl get ns
+** Check on the go build
+
+#+begin_src tmux :session "conformance:status" :results silent
+htop
 #+end_src
 
 * Review apisnoop findings
