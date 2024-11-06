@@ -33,7 +33,7 @@ kind create cluster --config kind+apisnoop.yaml
 #+begin_src tmux :session "conformance:k8s" :results silent
 mkdir -p ~/go/src/k8s.io
 cd $_
-git clone https://github.com/kubernetes/kubernetes.git
+git clone --depth 1 https://github.com/kubernetes/kubernetes.git
 #+end_src
 
 * Clone Conformance Workflow
