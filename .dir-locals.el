@@ -30,7 +30,8 @@
            (if (getenv "PGHOST")
                (getenv "PGHOST")
              (if (file-exists-p "/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-                 "snoopdb.apisnoop"
+                 ;"snoopdb.apisnoop"
+                 "localhost"
                "localhost"
                )))
       (set (make-local-variable 'sql-port)
